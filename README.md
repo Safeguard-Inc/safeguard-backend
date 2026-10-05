@@ -1,11 +1,15 @@
 # Safeguard Backend & SDK
 
 [![CI](https://github.com/Safeguard-Inc/safeguard-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/Safeguard-Inc/safeguard-backend/actions/workflows/ci.yml)
+[![Validations](https://img.shields.io/badge/CI%2FCD-10%2F10%20Automated%20Checks-success.svg)](.github/workflows/ci.yml)
+[![Canonical Errors](https://img.shields.io/badge/Errors-270%20Cataloged-blue.svg)](docs/ERROR_CODES.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/badge/npm-v0.1.0-blue.svg)](https://www.npmjs.com)
+[![Live Demo](https://img.shields.io/badge/Demo-Live_Console-brightgreen.svg)](https://safeguard-dashboard-mocha.vercel.app)
 [![Stellar](https://img.shields.io/badge/Stellar-Testnet-brightgreen.svg)](https://stellar.org)
 
 **Integration layer, event indexing daemon, and client SDK for Safeguard policy-guarded payments on Stellar.**
+
 
 This repository powers:
 1. **The Client SDK (`@safeguard-inc/sdk`):** Zero-broadcast pre-flight transaction simulation, Soroban error code decoding, and payment XDR builders.

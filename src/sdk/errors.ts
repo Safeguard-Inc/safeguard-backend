@@ -1,3 +1,5 @@
+import { ERROR_CATALOG as CANONICAL_ERROR_CATALOG, getError } from '../errors/catalog.js';
+
 export interface DecodedError {
   code: number;
   name: string;
@@ -5,7 +7,7 @@ export interface DecodedError {
   remediation: string;
 }
 
-export const ERROR_CATALOG: Record<number, { name: string; message: string; remediation: string }> = {
+export const SOROBAN_CONTRACT_ERROR_MAP: Record<number, { name: string; message: string; remediation: string }> = {
   1: {
     name: 'NotInitialized',
     message: 'The Safeguard contract has not been initialized with an admin key.',
@@ -69,10 +71,21 @@ export const ERROR_CATALOG: Record<number, { name: string; message: string; reme
 };
 
 export function decodeErrorCode(code: number): DecodedError {
-  const entry = ERROR_CATALOG[code];
-  if (entry) {
-    return { code, ...entry };
+  const contractEntry = SOROBAN_CONTRACT_ERROR_MAP[code];
+  if (contractEntry) {
+    return { code, ...contractEntry };
   }
+
+  const canonical = CANONICAL_ERROR_CATALOG[code];
+  if (canonical) {
+    return {
+      code,
+      name: canonical.mnemonic,
+      message: canonical.description,
+      remediation: canonical.recoveryHint,
+    };
+  }
+
   return {
     code,
     name: 'UnknownError',
@@ -80,3 +93,4 @@ export function decodeErrorCode(code: number): DecodedError {
     remediation: 'Inspect contract event logs on Soroban RPC.',
   };
 }
+

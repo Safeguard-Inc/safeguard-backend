@@ -1,0 +1,24 @@
+# CodeRabbit Configuration for Safeguard Inc.
+# https://coderabbit.ai
+version: "2"
+language: "en-US"
+tone_instructions: "Focus on TypeScript strictness, Stellar SDK integration, error code propagation, and REST API security."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  tools:
+    eslint:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+chat:
+  auto_reply: true

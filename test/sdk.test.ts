@@ -56,4 +56,41 @@ describe('SafeguardClient SDK Tests', () => {
     const errUnknown = decodeErrorCode(999);
     assert.equal(errUnknown.name, 'UnknownError');
   });
+
+  test('canonical 270 error code catalog integrity and lookup', () => {
+    const { ERROR_CATALOG, TOTAL_ERROR_CODES, getError } = require('../src/errors/catalog.ts');
+    assert.equal(TOTAL_ERROR_CODES, 270);
+    assert.equal(Object.keys(ERROR_CATALOG).length, 270);
+
+    // Test specific domain lookups
+    const hostErr = getError(1000);
+    assert.equal(hostErr.mnemonic, 'HOST_BUDGET_EXCEEDED');
+    assert.equal(hostErr.httpStatus, 500);
+
+    const policyErr = getError(2001);
+    assert.equal(policyErr.mnemonic, 'POLICY_NOT_FOUND');
+    assert.equal(policyErr.httpStatus, 404);
+
+    const paymentErr = getError(3004);
+    assert.equal(paymentErr.mnemonic, 'SPEND_CAP_EXCEEDED');
+
+    const escrowErr = getError(4003);
+    assert.equal(escrowErr.mnemonic, 'ESCROW_TIMELOCK_ACTIVE');
+
+    const sanctionsErr = getError(5001);
+    assert.equal(sanctionsErr.mnemonic, 'SPECIALLY_DESIGNATED_NATIONAL');
+
+    const authErr = getError(6003);
+    assert.equal(authErr.mnemonic, 'EMERGENCY_PAUSE_ACTIVE');
+
+    const sdkErr = getError(7000);
+    assert.equal(sdkErr.mnemonic, 'NETWORK_TIMEOUT');
+
+    const auditErr = getError(8000);
+    assert.equal(auditErr.mnemonic, 'AUDIT_LOG_TAMPERED');
+
+    const configErr = getError(9002);
+    assert.equal(configErr.mnemonic, 'CONTRACT_NOT_INITIALIZED');
+  });
 });
+

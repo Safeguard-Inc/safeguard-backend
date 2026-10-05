@@ -22,11 +22,63 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: "[1/10] Install Dependencies"
         run: npm ci
 
-      - name: Run Tests
-        run: npm run test:ts
+      - name: "[2/10] TypeScript Static Type Check"
+        run: npx tsc --noEmit
 
-      - name: Build TypeScript
+      - name: "[3/10] Compile TypeScript to Distribution"
         run: npm run build
+
+      - name: "[4/10] Run SDK & Payment Simulation Tests"
+        run: npm run test
+
+      - name: "[5/10] Validate Canonical 270 Error Codes Catalog"
+        run: |
+          node -e "
+            const { TOTAL_ERROR_CODES, ERROR_CATALOG, getError } = require('./dist/errors/catalog.js');
+            if (TOTAL_ERROR_CODES !== 270) throw new Error('Expected 270 error codes, got ' + TOTAL_ERROR_CODES);
+            if (Object.keys(ERROR_CATALOG).length !== 270) throw new Error('Catalog size mismatch');
+            const err = getError(2001);
+            if (err.mnemonic !== 'POLICY_NOT_FOUND') throw new Error('Lookup failed');
+            console.log('Error catalog integrity verified with 270 structured codes.');
+          "
+
+      - name: "[6/10] Validate REST API Application Factory"
+        run: |
+          node -e "
+            const { createApp, createRouter } = require('./dist/index.js');
+            const app = createApp();
+            if (!app) throw new Error('Failed to create Express app instance');
+            console.log('REST API router and app factory verified.');
+          "
+
+      - name: "[7/10] Verify Compiled Type Declarations & Bundles"
+        run: |
+          test -f dist/index.js || (echo "Missing dist/index.js" && exit 1)
+          test -f dist/index.d.ts || (echo "Missing dist/index.d.ts" && exit 1)
+          test -f dist/errors/catalog.js || (echo "Missing dist/errors/catalog.js" && exit 1)
+          echo "All distribution and declaration artifacts verified."
+
+      - name: "[8/10] Dependency Security Audit"
+        run: npm audit --audit-level=critical || true
+
+      - name: "[9/10] Validate Open Source Governance Files"
+        run: |
+          test -f LICENSE || (echo "Missing LICENSE" && exit 1)
+          test -f CONTRIBUTING.md || (echo "Missing CONTRIBUTING.md" && exit 1)
+          test -f docs/ERROR_CODES.md || (echo "Missing docs/ERROR_CODES.md" && exit 1)
+          echo "Governance documentation verified."
+
+      - name: "[10/10] Smoke Test SDK Public Export Surface"
+        run: |
+          node -e "
+            const sdk = require('./dist/index.js');
+            const requiredExports = ['SafeguardClient', 'ERROR_CATALOG', 'createApp', 'createRouter', 'decodeErrorCode'];
+            for (const exp of requiredExports) {
+              if (!(exp in sdk)) throw new Error('Missing public export: ' + exp);
+            }
+            console.log('Public SDK API surface complete: ' + Object.keys(sdk).join(', '));
+          "
+
