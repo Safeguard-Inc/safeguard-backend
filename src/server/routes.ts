@@ -2,6 +2,11 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { SafeguardClient } from '../sdk/client.js';
 
+const ADMIN = 'GC5MCMHHMFV7GOQ7DVN7MOTMHGTMVIP3YFQAAVFZ6WKUE6SLGQBVODW4';
+const RECIPIENT = 'GA6LW724VD6PVAG6U3Z3I34D7BOWPO6J7MIJATKGKEC6TYORN4SRCVLT';
+const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
+const XLM_SAC = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+
 export function createRouter(client: SafeguardClient): Router {
   const router = Router();
 
@@ -24,45 +29,44 @@ export function createRouter(client: SafeguardClient): Router {
     timestamp: number;
     txHash?: string;
   }> = [
+    // Real transactions against the live Testnet payments contract
+    // (CDC6KVX7...SRCN). Open any txHash on stellar.expert to verify.
     {
       id: 'tx-1',
-      sender: 'GBBM6WDF6SMPGMBCQXAWOJZZQB65SUWAAK4EDLOH7OQH226BC4STTU3V',
-      recipient: 'GC2U3YSOCCLOHKADJ4INRHJDFVDMGZX3WWTPH7V62MQWETUD4LR4HDCA',
-      token: 'CBLQLJAG72M4XQRJMQHSKYIFVHQD7LNTNOQH2GRMCMBWMSLBSLTGTJC7',
-      amount: '50000000', // 5 USDC
+      sender: ADMIN,
+      recipient: RECIPIENT,
+      token: XLM_SAC,
+      amount: '500000000', // 50 XLM
       status: 'Approved',
-      reason: 'Direct settlement under spend cap',
-      timestamp: Date.now() - 360000,
-      txHash: '4c5759298c0364b01d386a5935b964532b04978ea595d96d904d9011f58d64b8',
+      reason: 'Under the 100 XLM spend cap; settled directly',
+      timestamp: Date.parse('2026-10-05T20:59:40Z'),
+      txHash: 'c762b42f818387aa584ea33d3da006f22671071ed6e182068994ea6597395e6c',
     },
     {
       id: 'tx-2',
-      sender: 'GBBM6WDF6SMPGMBCQXAWOJZZQB65SUWAAK4EDLOH7OQH226BC4STTU3V',
-      recipient: 'GC2O7PSLQXL24R7EECSMZC7YD5IB7QP5COX2FHC52SVKREEDSX2WWPWV',
-      token: 'CBLQLJAG72M4XQRJMQHSKYIFVHQD7LNTNOQH2GRMCMBWMSLBSLTGTJC7',
-      amount: '25000000000', // 2,500 USDC
+      sender: ADMIN,
+      recipient: RECIPIENT,
+      token: XLM_SAC,
+      amount: '1500000000', // 150 XLM
       status: 'Escrowed',
-      reason: 'Exceeds instantaneous spend cap (1,000 USDC); held in Escrow',
-      timestamp: Date.now() - 180000,
-      txHash: '1ddad388f914e267b282855ddc8e5478fabfb8542e7798e4402447e5341e3f9a',
+      reason: 'Exceeds the 100 XLM spend cap; held as escrow #1 (later released)',
+      timestamp: Date.parse('2026-10-05T20:59:50Z'),
+      txHash: '2d83231685f03b17e1a001e6c82c38453459b4f67b416ef60f9be73133026f0e',
     },
     {
       id: 'tx-3',
-      sender: 'GBBM6WDF6SMPGMBCQXAWOJZZQB65SUWAAK4EDLOH7OQH226BC4STTU3V',
-      recipient: 'GBLOCKEDWALLET99999999999999999999999999999999999999999999',
-      token: 'CBLQLJAG72M4XQRJMQHSKYIFVHQD7LNTNOQH2GRMCMBWMSLBSLTGTJC7',
-      amount: '100000000', // 10 USDC
+      sender: ADMIN,
+      recipient: DENYLISTED,
+      token: XLM_SAC,
+      amount: '10000000', // 1 XLM
       status: 'Blocked',
-      reason: 'Recipient address on active sanctions/denylist',
-      timestamp: Date.now() - 60000,
+      reason: 'RecipientDenylisted (#11): rejected at simulation, never submitted',
+      timestamp: Date.parse('2026-10-05T21:00:10Z'),
     },
   ];
 
-  // Seed default denylist addresses for demo
-  client.setDenylist([
-    'GBLOCKEDWALLET99999999999999999999999999999999999999999999',
-    'GSANCTIONEDTESTNETADDR00000000000000000000000000000000000',
-  ]);
+  // Mirror the live contract's denylist so simulations match on-chain results.
+  client.setDenylist([DENYLISTED]);
 
   /**
    * Health Check
@@ -102,33 +106,20 @@ export function createRouter(client: SafeguardClient): Router {
    * Get Active Policies & Limits
    */
   router.get('/api/policies', (_req: Request, res: Response) => {
+    // Mirrors SafeguardPayments.get_config() on Testnet. Reading it live over
+    // Soroban RPC is tracked as a roadmap issue.
     res.json({
       success: true,
       data: {
-        activeVersion: 'v1.2.0',
-        spendCapUnits: '1,000.00 USDC',
-        spendCapStroops: '10000000000',
-        escrowGracePeriodSeconds: 86400,
+        paymentsContract: client.getConfig().paymentContractId,
+        spendCapUnits: '100 XLM',
+        spendCapStroops: '1000000000',
+        escrowPeriodSeconds: 86400,
         rules: [
-          {
-            id: 'RULE-SPEND-CAP-001',
-            type: 'SpendCap',
-            action: 'FLAG_TO_ESCROW',
-            threshold: '10000000000',
-            status: 'ACTIVE',
-          },
-          {
-            id: 'RULE-DENYLIST-002',
-            type: 'Denylist',
-            action: 'REVERT_BLOCK',
-            status: 'ACTIVE',
-          },
-          {
-            id: 'RULE-ALLOWLIST-003',
-            type: 'Allowlist',
-            action: 'PASS_THROUGH',
-            status: 'OPTIONAL',
-          },
+          { id: 'SPEND_CAP', action: 'ESCROW', threshold: '1000000000', reasonCode: 6 },
+          { id: 'SENDER_DENYLIST', action: 'REVERT', reasonCode: 12 },
+          { id: 'RECIPIENT_DENYLIST', action: 'REVERT', reasonCode: 11 },
+          { id: 'PAUSED', action: 'REVERT', reasonCode: 4 },
         ],
       },
     });

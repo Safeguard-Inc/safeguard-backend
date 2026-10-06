@@ -4,7 +4,7 @@ import { decodeErrorCode, DecodedError } from './errors.js';
 export class SafeguardClient {
   private config: NetworkConfig;
   private denylist: Set<string> = new Set();
-  private spendCap: bigint = 1000_0000000n; // 1,000 units default cap (7 decimals)
+  private spendCap: bigint = 100_0000000n; // 100 units: matches the live Testnet deployment (7 decimals)
 
   constructor(config: Partial<NetworkConfig> = {}) {
     this.config = { ...TESTNET_CONFIG, ...config };
@@ -42,7 +42,7 @@ export class SafeguardClient {
         reasonCode: 5,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 100,
+        estimatedFeeStroops: 0, // rejected at simulation; never submitted
         timestamp,
       };
     }
@@ -55,7 +55,7 @@ export class SafeguardClient {
         reasonCode: 12,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 100,
+        estimatedFeeStroops: 0, // rejected at simulation; never submitted
         timestamp,
       };
     }
@@ -68,7 +68,7 @@ export class SafeguardClient {
         reasonCode: 11,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 100,
+        estimatedFeeStroops: 0, // rejected at simulation; never submitted
         timestamp,
       };
     }
@@ -81,7 +81,7 @@ export class SafeguardClient {
         reasonCode: 6,
         isEscrow: true,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 2500, // Escrow storage invocation
+        estimatedFeeStroops: 739309, // measured on Testnet; mostly rent for the new escrow entry
         timestamp,
       };
     }
@@ -93,7 +93,7 @@ export class SafeguardClient {
       reasonCode: 0,
       isEscrow: false,
       spendCap: this.spendCap.toString(),
-      estimatedFeeStroops: 1200,
+      estimatedFeeStroops: 19237, // measured on Testnet (docs/BENCHMARKS.md in safeguard-contracts)
       timestamp,
     };
   }
