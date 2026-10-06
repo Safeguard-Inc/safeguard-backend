@@ -12,7 +12,7 @@ The backend answers one question before a user signs anything: *will this
 payment settle, be escrowed, or be blocked, and why?* It also turns numeric
 contract errors into messages people can act on.
 
-[![Watch the five-minute Safeguard pitch](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch-poster.jpg)](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch.mp4)
+[![Watch the Safeguard pitch video (<2 min)](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch-poster.jpg)](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch.mp4)
 
 ---
 
