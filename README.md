@@ -170,11 +170,17 @@ match wins.
 | 1 | `amount <= 0` | `BLOCK` | 5 | 0, fails in simulation |
 | 2 | Sender denylisted | `BLOCK` | 12 | 0, fails in simulation |
 | 3 | Recipient denylisted | `BLOCK` | 11 | 0, fails in simulation |
-| 4 | `amount > spendCap` | `FLAG` (escrow) | 6 | 739,309 stroops |
-| 5 | Otherwise | `APPROVE` | 0 | 19,237 stroops |
+| 4 | External `PolicyContract` denies party | `BLOCK` | 7 | 0, fails in simulation |
+| 5 | `amount > spendCap` | `FLAG` (escrow) | 6 | 739,309 stroops |
+| 6 | Otherwise | `APPROVE` | 0 | 19,237 stroops |
 
 Fee figures come from
 [safeguard-contracts/docs/BENCHMARKS.md](https://github.com/Safeguard-Inc/safeguard-contracts/blob/main/docs/BENCHMARKS.md).
+
+### Two-Tier Error Architecture
+
+1. **On-Chain Soroban Execution Codes (22 codes):** Lean, byte-optimized contract error enums (`PaymentError` 1-12 and `ContractError` 2-15) executed directly in WASM bytecode.
+2. **Protocol Compliance Taxonomy (270 diagnostic codes):** Maintained in [`src/errors/catalog.ts`](src/errors/catalog.ts) and [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md), categorizing compliance failures across 9 regulatory domains (Identity, Sanctions, Jurisdiction, Velocity, Travel Rule, Escrow, etc.) for off-chain oracles, indexers, and client applications.
 
 > [!IMPORTANT]
 > `simulatePayment` runs **locally**: it mirrors the contract's logic but
