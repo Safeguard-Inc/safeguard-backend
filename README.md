@@ -28,7 +28,7 @@ contract errors into messages people can act on.
 - [Configuration](#configuration)
 - [Development](#development)
 - [Project status and roadmap](#project-status-and-roadmap)
-- [Contributing (Stellar Drips Wave)](#contributing-stellar-drips-wave)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -219,9 +219,9 @@ type-check, tests and build on every push and pull request.
 | 🔜 | Publish `@safeguard-inc/backend` to npm |
 | 🔜 | Route-level tests with supertest, plus a coverage badge |
 
-## Contributing (Stellar Drips Wave)
+## Contributing
 
-Each roadmap item is a scoped issue with acceptance criteria:
+We welcome community contributions and pull requests. Each roadmap item is a scoped issue with acceptance criteria:
 [browse open issues](https://github.com/Safeguard-Inc/safeguard-backend/issues).
 Claim one with a comment, then fork, branch, and make sure `npm test` and
 `npx tsc --noEmit` pass before opening a PR. See

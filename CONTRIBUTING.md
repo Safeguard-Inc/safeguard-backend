@@ -1,6 +1,6 @@
 # Contributing to Safeguard Backend & SDK
 
-We welcome community pull requests and participate in the **Stellar Drips Wave** monthly sprint cycles.
+We welcome community contributions, bug reports, and pull requests.
 
 ## Getting Started
 
