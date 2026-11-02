@@ -21,6 +21,20 @@ export interface StoredTransaction {
   ledger?: number;
 }
 
+export interface PaginationOptions {
+  page?: number;
+  limit?: number;
+  status?: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface StoredEscrow {
   id: string;
   escrowIndex: number;
@@ -140,6 +154,34 @@ export class DataStore {
     try {
       fs.writeFileSync(this.escrowFile, JSON.stringify(this.escrows, null, 2), 'utf8');
     } catch {}
+  }
+
+  public getPaginatedTransactions(options: PaginationOptions = {}): PaginatedResult<StoredTransaction> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.max(1, Math.min(200, options.limit || 50));
+    let list = this.transactions;
+    if (options.status) {
+      list = list.filter((tx) => tx.status.toLowerCase() === options.status?.toLowerCase());
+    }
+    const total = list.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+    const items = list.slice(offset, offset + limit);
+    return { items, total, page, limit, totalPages };
+  }
+
+  public getPaginatedEscrows(options: PaginationOptions = {}): PaginatedResult<StoredEscrow> {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.max(1, Math.min(200, options.limit || 50));
+    let list = this.escrows;
+    if (options.status) {
+      list = list.filter((e) => e.status.toLowerCase() === options.status?.toLowerCase());
+    }
+    const total = list.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+    const items = list.slice(offset, offset + limit);
+    return { items, total, page, limit, totalPages };
   }
 
   public getTransactions(limit = 100): StoredTransaction[] {

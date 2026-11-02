@@ -181,24 +181,61 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
-   * Get Persistent Activity Log
+   * Get Persistent Activity Log with optional pagination & status filtering
    */
   router.get('/api/transactions', (req: Request, res: Response) => {
-    const limit = parseInt(String(req.query.limit || '100'), 10);
-    const txs = defaultStore.getTransactions(isNaN(limit) ? 100 : limit);
+    const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
+    const status = req.query.status as string | undefined;
+
+    const result = defaultStore.getPaginatedTransactions({
+      page: isNaN(page) ? 1 : page,
+      limit: isNaN(limit) ? 100 : limit,
+      status,
+    });
+
     res.json({
       success: true,
-      data: txs,
+      data: result.items,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
     });
   });
 
   /**
-   * Get Active and Settled Escrows (for Dashboard Escrow Vault tab)
+   * Get Active and Settled Escrows (with optional pagination)
    */
   router.get('/api/escrows', (req: Request, res: Response) => {
+    const pageParam = req.query.page;
+    const limitParam = req.query.limit;
     const status = req.query.status as 'Pending' | 'Released' | 'Refunded' | undefined;
-    const escrows = defaultStore.getEscrows(status);
-    res.json(escrows);
+
+    if (pageParam !== undefined || limitParam !== undefined) {
+      const page = pageParam ? parseInt(String(pageParam), 10) : 1;
+      const limit = limitParam ? parseInt(String(limitParam), 10) : 50;
+      const result = defaultStore.getPaginatedEscrows({
+        page: isNaN(page) ? 1 : page,
+        limit: isNaN(limit) ? 50 : limit,
+        status,
+      });
+      res.json({
+        success: true,
+        data: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
+    } else {
+      const escrows = defaultStore.getEscrows(status);
+      res.json(escrows);
+    }
   });
 
   /**
