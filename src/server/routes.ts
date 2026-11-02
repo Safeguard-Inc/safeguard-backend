@@ -150,6 +150,16 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Get Active Policies & Limits
    */
+  /**
+   * Get Supported SAC Tokens
+   */
+  router.get('/api/tokens', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: client.getSupportedTokens(),
+    });
+  });
+
   router.get('/api/policies', (_req: Request, res: Response) => {
     res.json({
       success: true,
