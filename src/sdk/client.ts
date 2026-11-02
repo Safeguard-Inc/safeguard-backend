@@ -1,4 +1,4 @@
-import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS } from './types.js';
+import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS, StellarMemo } from './types.js';
 import { decodeErrorCode, DecodedError } from './errors.js';
 
 export class SafeguardClient {
@@ -31,6 +31,48 @@ export class SafeguardClient {
   }
 
   /**
+   * Validate Stellar payment memo format and bounds.
+   */
+  public validateMemo(memo?: StellarMemo): { valid: boolean; error?: string } {
+    if (!memo || memo.type === 'none' || !memo.value) {
+      return { valid: true };
+    }
+    const val = memo.value.trim();
+    switch (memo.type) {
+      case 'text': {
+        const byteLen = Buffer.byteLength(val, 'utf8');
+        if (byteLen > 28) {
+          return { valid: false, error: `MEMO_TEXT exceeds 28 bytes (received ${byteLen} bytes)` };
+        }
+        return { valid: true };
+      }
+      case 'id': {
+        if (!/^\d+$/.test(val)) {
+          return { valid: false, error: 'MEMO_ID must be an unsigned 64-bit integer string' };
+        }
+        try {
+          const id = BigInt(val);
+          if (id < 0n || id > 18446744073709551615n) {
+            return { valid: false, error: 'MEMO_ID exceeds u64 bounds (0 - 18446744073709551615)' };
+          }
+        } catch {
+          return { valid: false, error: 'MEMO_ID could not be parsed as a 64-bit integer' };
+        }
+        return { valid: true };
+      }
+      case 'hash':
+      case 'return': {
+        if (!/^[0-9a-fA-F]{64}$/.test(val)) {
+          return { valid: false, error: `MEMO_${memo.type.toUpperCase()} must be a 32-byte hex string (64 hex chars)` };
+        }
+        return { valid: true };
+      }
+      default:
+        return { valid: false, error: `Unsupported memo type: ${(memo as any).type}` };
+    }
+  }
+
+  /**
    * Simulate a payment against policy rules.
    * Performs zero-broadcast pre-flight evaluation with optional caching.
    */
@@ -52,8 +94,19 @@ export class SafeguardClient {
 
     let result: SimulationResult;
 
-    // 1. Amount validation
-    if (amount <= 0n) {
+    // 0. Memo validation
+    const memoValidation = this.validateMemo(params.memo);
+    if (!memoValidation.valid) {
+      result = {
+        decision: 'BLOCK',
+        reason: `Invalid Stellar payment memo: ${memoValidation.error}`,
+        reasonCode: 2,
+        isEscrow: false,
+        spendCap: this.spendCap.toString(),
+        estimatedFeeStroops: 0,
+        timestamp,
+      };
+    } else if (amount <= 0n) {
       result = {
         decision: 'BLOCK',
         reason: 'Payment amount must be greater than zero',
