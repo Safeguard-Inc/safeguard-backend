@@ -1,4 +1,4 @@
-import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG } from './types.js';
+import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS } from './types.js';
 import { decodeErrorCode, DecodedError } from './errors.js';
 
 export class SafeguardClient {
@@ -192,5 +192,25 @@ export class SafeguardClient {
       denylistedCount: this.denylist.size,
       paymentContractId: this.config.paymentContractId,
     };
+  }
+
+  /**
+   * Return array of known Stellar Asset Contract (SAC) token definitions.
+   */
+  public getSupportedTokens(): TokenMetadata[] {
+    return Object.values(KNOWN_SAC_TOKENS);
+  }
+
+  /**
+   * Resolve token metadata by asset symbol (e.g. 'USDC') or contract address.
+   */
+  public resolveToken(symbolOrContract: string): TokenMetadata | undefined {
+    const clean = symbolOrContract.trim().toUpperCase();
+    if (KNOWN_SAC_TOKENS[clean]) {
+      return KNOWN_SAC_TOKENS[clean];
+    }
+    return Object.values(KNOWN_SAC_TOKENS).find(
+      (t) => t.contractId.toUpperCase() === clean
+    );
   }
 }
