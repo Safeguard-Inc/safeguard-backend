@@ -17,6 +17,10 @@ export class SafeguardClient {
     this.denylist = new Set(addresses.map((a) => a.trim().toUpperCase()));
   }
 
+  public isDenylisted(address: string): boolean {
+    return this.denylist.has(address.trim().toUpperCase());
+  }
+
   /**
    * Set local spend cap simulation mirror.
    */

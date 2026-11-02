@@ -1,11 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { SafeguardClient } from '../sdk/client.js';
+import { defaultStore } from './store.js';
+import { defaultIndexer } from './indexer.js';
 
-const ADMIN = 'GC5MCMHHMFV7GOQ7DVN7MOTMHGTMVIP3YFQAAVFZ6WKUE6SLGQBVODW4';
-const RECIPIENT = 'GA6LW724VD6PVAG6U3Z3I34D7BOWPO6J7MIJATKGKEC6TYORN4SRCVLT';
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
-const XLM_SAC = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 
 export function createRouter(client: SafeguardClient): Router {
   const router = Router();
@@ -17,59 +16,15 @@ export function createRouter(client: SafeguardClient): Router {
     amount: z.string().regex(/^\d+$/, 'Amount must be an integer string in stroops'),
   });
 
-  // Recent in-memory activity log
-  const transactions: Array<{
-    id: string;
-    sender: string;
-    recipient: string;
-    token: string;
-    amount: string;
-    status: 'Approved' | 'Escrowed' | 'Blocked';
-    reason: string;
-    timestamp: number;
-    txHash?: string;
-  }> = [
-    // Real transactions against the live Testnet payments contract
-    // (CDC6KVX7...SRCN). Open any txHash on stellar.expert to verify.
-    {
-      id: 'tx-1',
-      sender: ADMIN,
-      recipient: RECIPIENT,
-      token: XLM_SAC,
-      amount: '500000000', // 50 XLM
-      status: 'Approved',
-      reason: 'Under the 100 XLM spend cap; settled directly',
-      timestamp: Date.parse('2026-10-05T20:59:40Z'),
-      txHash: 'c762b42f818387aa584ea33d3da006f22671071ed6e182068994ea6597395e6c',
-    },
-    {
-      id: 'tx-2',
-      sender: ADMIN,
-      recipient: RECIPIENT,
-      token: XLM_SAC,
-      amount: '1500000000', // 150 XLM
-      status: 'Escrowed',
-      reason: 'Exceeds the 100 XLM spend cap; held as escrow #1 (later released)',
-      timestamp: Date.parse('2026-10-05T20:59:50Z'),
-      txHash: '2d83231685f03b17e1a001e6c82c38453459b4f67b416ef60f9be73133026f0e',
-    },
-    {
-      id: 'tx-3',
-      sender: ADMIN,
-      recipient: DENYLISTED,
-      token: XLM_SAC,
-      amount: '10000000', // 1 XLM
-      status: 'Blocked',
-      reason: 'RecipientDenylisted (#11): rejected at simulation, never submitted',
-      timestamp: Date.parse('2026-10-05T21:00:10Z'),
-    },
-  ];
+  const batchSimulateSchema = z.object({
+    payments: z.array(simulateSchema).min(1).max(100),
+  });
 
   // Mirror the live contract's denylist so simulations match on-chain results.
   client.setDenylist([DENYLISTED]);
 
   /**
-   * Health Check
+   * Basic Health Check
    */
   router.get('/health', (_req: Request, res: Response) => {
     res.json({
@@ -82,12 +37,50 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Deep Health Check (Verifies Soroban RPC + Indexer Daemon)
+   */
+  router.get('/health/deep', async (_req: Request, res: Response) => {
+    const indexerStatus = defaultIndexer.getStatus();
+    res.json({
+      status: indexerStatus.healthy ? 'healthy' : 'degraded',
+      timestamp: Date.now(),
+      indexer: indexerStatus,
+      uptimeSeconds: Math.floor(process.uptime()),
+    });
+  });
+
+  /**
+   * Fast Denylist Check Endpoint
+   */
+  router.get('/api/denylist/check/:address', (req: Request, res: Response) => {
+    const address = req.params.address;
+    const isBlocked = client.isDenylisted(address);
+    res.json({
+      success: true,
+      address,
+      isDenylisted: isBlocked,
+    });
+  });
+
+  /**
    * Simulate a Payment against Policy Rules
    */
   router.post('/api/pay/simulate', async (req: Request, res: Response) => {
     try {
       const parsed = simulateSchema.parse(req.body);
       const result = await client.simulatePayment(parsed);
+
+      // Persist simulation result to store
+      defaultStore.addTransaction({
+        id: `tx-sim-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        sender: parsed.sender,
+        recipient: parsed.recipient,
+        token: parsed.token,
+        amount: parsed.amount,
+        status: result.decision === 'APPROVE' ? 'Approved' : result.decision === 'FLAG' ? 'Escrowed' : 'Blocked',
+        reason: result.reason,
+        timestamp: Date.now(),
+      });
 
       res.json({
         success: true,
@@ -103,11 +96,36 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Batch Simulate Multiple Payments (e.g., enterprise payroll)
+   */
+  router.post('/api/pay/simulate-batch', async (req: Request, res: Response) => {
+    try {
+      const parsed = batchSimulateSchema.parse(req.body);
+      const results = [];
+
+      for (const item of parsed.payments) {
+        const res = await client.simulatePayment(item);
+        results.push({ input: item, verdict: res });
+      }
+
+      res.json({
+        success: true,
+        count: results.length,
+        data: results,
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ success: false, error: 'Validation failed', details: err.errors });
+        return;
+      }
+      res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+    }
+  });
+
+  /**
    * Get Active Policies & Limits
    */
   router.get('/api/policies', (_req: Request, res: Response) => {
-    // Mirrors SafeguardPayments.get_config() on Testnet. Reading it live over
-    // Soroban RPC is tracked as a roadmap issue.
     res.json({
       success: true,
       data: {
@@ -126,12 +144,33 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
-   * Get Recent Activity Log
+   * Get Persistent Activity Log
    */
-  router.get('/api/transactions', (_req: Request, res: Response) => {
+  router.get('/api/transactions', (req: Request, res: Response) => {
+    const limit = parseInt(String(req.query.limit || '100'), 10);
+    const txs = defaultStore.getTransactions(isNaN(limit) ? 100 : limit);
     res.json({
       success: true,
-      data: transactions,
+      data: txs,
+    });
+  });
+
+  /**
+   * Get Active and Settled Escrows (for Dashboard Escrow Vault tab)
+   */
+  router.get('/api/escrows', (req: Request, res: Response) => {
+    const status = req.query.status as 'Pending' | 'Released' | 'Refunded' | undefined;
+    const escrows = defaultStore.getEscrows(status);
+    res.json(escrows);
+  });
+
+  /**
+   * Get Indexer Status
+   */
+  router.get('/api/indexer/status', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: defaultIndexer.getStatus(),
     });
   });
 
