@@ -5,6 +5,8 @@ export class SafeguardClient {
   private config: NetworkConfig;
   private denylist: Set<string> = new Set();
   private spendCap: bigint = 100_0000000n; // 100 units: matches the live Testnet deployment (7 decimals)
+  private simCache: Map<string, { result: SimulationResult; expiresAt: number }> = new Map();
+  private cacheTtlMs: number = 5000;
 
   constructor(config: Partial<NetworkConfig> = {}) {
     this.config = { ...TESTNET_CONFIG, ...config };
@@ -30,76 +32,88 @@ export class SafeguardClient {
 
   /**
    * Simulate a payment against policy rules.
-   * Performs zero-broadcast pre-flight evaluation.
+   * Performs zero-broadcast pre-flight evaluation with optional caching.
    */
-  public async simulatePayment(params: PaymentParams): Promise<SimulationResult> {
+  public async simulatePayment(params: PaymentParams, useCache = false): Promise<SimulationResult> {
     const sender = params.sender.trim().toUpperCase();
     const recipient = params.recipient.trim().toUpperCase();
+    const token = params.token.trim().toUpperCase();
+    const cacheKey = `${sender}:${recipient}:${token}:${params.amount}`;
+
+    if (useCache) {
+      const cached = this.simCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.result;
+      }
+    }
+
     const amount = BigInt(params.amount);
     const timestamp = Math.floor(Date.now() / 1000);
 
+    let result: SimulationResult;
+
     // 1. Amount validation
     if (amount <= 0n) {
-      return {
+      result = {
         decision: 'BLOCK',
         reason: 'Payment amount must be greater than zero',
         reasonCode: 5,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 0, // rejected at simulation; never submitted
+        estimatedFeeStroops: 0,
         timestamp,
       };
-    }
-
-    // 2. Sender denylist check
-    if (this.denylist.has(sender)) {
-      return {
+    } else if (this.denylist.has(sender)) {
+      // 2. Sender denylist check
+      result = {
         decision: 'BLOCK',
         reason: 'Sender address is present on the compliance denylist',
         reasonCode: 12,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 0, // rejected at simulation; never submitted
+        estimatedFeeStroops: 0,
         timestamp,
       };
-    }
-
-    // 3. Recipient denylist check
-    if (this.denylist.has(recipient)) {
-      return {
+    } else if (this.denylist.has(recipient)) {
+      // 3. Recipient denylist check
+      result = {
         decision: 'BLOCK',
         reason: 'Recipient address is restricted on the compliance denylist',
         reasonCode: 11,
         isEscrow: false,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 0, // rejected at simulation; never submitted
+        estimatedFeeStroops: 0,
         timestamp,
       };
-    }
-
-    // 4. Spend cap check (diverts to Escrow if exceeded)
-    if (amount > this.spendCap) {
-      return {
+    } else if (amount > this.spendCap) {
+      // 4. Spend cap check (diverts to Escrow if exceeded)
+      result = {
         decision: 'FLAG',
         reason: 'Payment exceeds spend cap threshold; will be held in on-chain Escrow for review',
         reasonCode: 6,
         isEscrow: true,
         spendCap: this.spendCap.toString(),
-        estimatedFeeStroops: 739309, // measured on Testnet; mostly rent for the new escrow entry
+        estimatedFeeStroops: 739309,
+        timestamp,
+      };
+    } else {
+      // 5. Approved payment
+      result = {
+        decision: 'APPROVE',
+        reason: 'Transaction satisfies all policy rules; approved for direct SAC transfer',
+        reasonCode: 0,
+        isEscrow: false,
+        spendCap: this.spendCap.toString(),
+        estimatedFeeStroops: 19237,
         timestamp,
       };
     }
 
-    // 5. Approved payment
-    return {
-      decision: 'APPROVE',
-      reason: 'Transaction satisfies all policy rules; approved for direct SAC transfer',
-      reasonCode: 0,
-      isEscrow: false,
-      spendCap: this.spendCap.toString(),
-      estimatedFeeStroops: 19237, // measured on Testnet (docs/BENCHMARKS.md in safeguard-contracts)
-      timestamp,
-    };
+    if (useCache) {
+      this.simCache.set(cacheKey, { result, expiresAt: Date.now() + this.cacheTtlMs });
+    }
+
+    return result;
   }
 
   /**
@@ -192,6 +206,20 @@ export class SafeguardClient {
       denylistedCount: this.denylist.size,
       paymentContractId: this.config.paymentContractId,
     };
+  }
+
+  /**
+   * Clear cached simulation results.
+   */
+  public clearSimulationCache(): void {
+    this.simCache.clear();
+  }
+
+  /**
+   * Return number of cached simulation entries.
+   */
+  public getSimulationCacheSize(): number {
+    return this.simCache.size;
   }
 
   /**
