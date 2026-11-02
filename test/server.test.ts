@@ -60,4 +60,49 @@ describe('Safeguard Backend Store & Indexer Tests', () => {
     const app = createApp();
     assert.ok(app);
   });
+  test('DataStore correctly tracks counts and prunes transactions older than maxAge', () => {
+    const store = new DataStore();
+    const oldTx = {
+      id: `prune-tx-${Date.now()}`,
+      sender: 'GBOLD1111111111111111111111111111111111111111111111111111',
+      recipient: 'GBOLD2222222222222222222222222222222222222222222222222222',
+      token: 'XLM',
+      amount: '500',
+      status: 'Approved' as const,
+      reason: 'Old test record',
+      timestamp: Date.now() - 50000,
+    };
+    store.addTransaction(oldTx);
+    assert.ok(store.getTransactionCount() > 0);
+    assert.ok(store.getEscrowCount() >= 0);
+
+    const pruned = store.pruneOldTransactions(20000);
+    assert.ok(pruned >= 1);
+  });
+
+  test('App serves health check, deep health, and OpenAPI documentation', async () => {
+    const app = createApp();
+    const server = app.listen(0);
+    const addr = server.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    try {
+      const resHealth = await fetch(`http://localhost:${port}/health`);
+      assert.equal(resHealth.status, 200);
+      const dataHealth = (await resHealth.json()) as any;
+      assert.equal(dataHealth.status, 'healthy');
+
+      const resDocs = await fetch(`http://localhost:${port}/docs`);
+      assert.equal(resDocs.status, 200);
+      const docsHtml = await resDocs.text();
+      assert.ok(docsHtml.includes('SwaggerUIBundle'));
+
+      const resSpec = await fetch(`http://localhost:${port}/api/openapi.json`);
+      assert.equal(resSpec.status, 200);
+      const spec = (await resSpec.json()) as any;
+      assert.equal(spec.openapi, '3.1.0');
+      assert.ok(spec.paths['/api/pay/simulate']);
+    } finally {
+      server.close();
+    }
+  });
 });
