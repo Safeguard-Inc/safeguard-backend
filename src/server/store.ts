@@ -182,6 +182,25 @@ export class DataStore {
     this.saveEscrows();
     return true;
   }
+
+  public pruneOldTransactions(maxAgeMs = 30 * 24 * 60 * 60 * 1000): number {
+    const cutoff = Date.now() - maxAgeMs;
+    const initialLen = this.transactions.length;
+    this.transactions = this.transactions.filter((tx) => tx.timestamp >= cutoff);
+    const pruned = initialLen - this.transactions.length;
+    if (pruned > 0) {
+      this.saveTransactions();
+    }
+    return pruned;
+  }
+
+  public getTransactionCount(): number {
+    return this.transactions.length;
+  }
+
+  public getEscrowCount(): number {
+    return this.escrows.length;
+  }
 }
 
 export const defaultStore = new DataStore();
