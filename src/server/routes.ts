@@ -183,6 +183,17 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Get Persistent Activity Log with optional pagination & status filtering
    */
+  /**
+   * Get Aggregate Compliance & Telemetry Stats
+   */
+  router.get('/api/stats', (_req: Request, res: Response) => {
+    const stats = defaultStore.getComplianceStats();
+    res.json({
+      success: true,
+      data: stats,
+    });
+  });
+
   router.get('/api/transactions', (req: Request, res: Response) => {
     const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
     const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;

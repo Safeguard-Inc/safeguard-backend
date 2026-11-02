@@ -21,6 +21,20 @@ export interface StoredTransaction {
   ledger?: number;
 }
 
+export interface ComplianceStats {
+  totalTransactions: number;
+  approvedCount: number;
+  escrowedCount: number;
+  blockedCount: number;
+  approvalRatePercent: number;
+  totalEscrows: number;
+  pendingEscrows: number;
+  releasedEscrows: number;
+  refundedEscrows: number;
+  totalVolumeStroops: string;
+  lastUpdated: number;
+}
+
 export interface PaginationOptions {
   page?: number;
   limit?: number;
@@ -234,6 +248,57 @@ export class DataStore {
       this.saveTransactions();
     }
     return pruned;
+  }
+
+  public getComplianceStats(): ComplianceStats {
+    let approvedCount = 0;
+    let escrowedCount = 0;
+    let blockedCount = 0;
+    let totalVolume = 0n;
+
+    for (const tx of this.transactions) {
+      if (tx.status === 'Approved') {
+        approvedCount++;
+        try {
+          totalVolume += BigInt(tx.amount);
+        } catch {}
+      } else if (tx.status === 'Escrowed') {
+        escrowedCount++;
+        try {
+          totalVolume += BigInt(tx.amount);
+        } catch {}
+      } else if (tx.status === 'Blocked') {
+        blockedCount++;
+      }
+    }
+
+    let pendingEscrows = 0;
+    let releasedEscrows = 0;
+    let refundedEscrows = 0;
+    for (const e of this.escrows) {
+      if (e.status === 'Pending') pendingEscrows++;
+      else if (e.status === 'Released') releasedEscrows++;
+      else if (e.status === 'Refunded') refundedEscrows++;
+    }
+
+    const totalTransactions = this.transactions.length;
+    const approvalRatePercent = totalTransactions > 0 
+      ? Number(((approvedCount / totalTransactions) * 100).toFixed(2))
+      : 100;
+
+    return {
+      totalTransactions,
+      approvedCount,
+      escrowedCount,
+      blockedCount,
+      approvalRatePercent,
+      totalEscrows: this.escrows.length,
+      pendingEscrows,
+      releasedEscrows,
+      refundedEscrows,
+      totalVolumeStroops: totalVolume.toString(),
+      lastUpdated: Date.now(),
+    };
   }
 
   public getTransactionCount(): number {
