@@ -14,6 +14,7 @@ export function createRouter(client: SafeguardClient): Router {
     recipient: z.string().min(1, 'Recipient address is required'),
     token: z.string().min(1, 'Token address is required'),
     amount: z.string().regex(/^\d+$/, 'Amount must be an integer string in stroops'),
+    useCache: z.boolean().optional(),
   });
 
   const batchSimulateSchema = z.object({
@@ -68,7 +69,8 @@ export function createRouter(client: SafeguardClient): Router {
   router.post('/api/pay/simulate', async (req: Request, res: Response) => {
     try {
       const parsed = simulateSchema.parse(req.body);
-      const result = await client.simulatePayment(parsed);
+      const useCache = req.query.cache === 'true' || Boolean(parsed.useCache);
+      const result = await client.simulatePayment(parsed, useCache);
 
       // Persist simulation result to store
       defaultStore.addTransaction({
