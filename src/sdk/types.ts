@@ -1,3 +1,14 @@
+export type FeeTier = 'low' | 'normal' | 'priority';
+
+export interface FeeEstimate {
+  tier: FeeTier;
+  baseFeeStroops: number;
+  resourceFeeStroops: number;
+  totalEstimatedFeeStroops: number;
+  totalEstimatedFeeXlm: string;
+  isEscrow: boolean;
+}
+
 export type PaymentDecision = 'APPROVE' | 'FLAG' | 'BLOCK';
 
 export interface PaymentParams {

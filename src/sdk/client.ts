@@ -1,4 +1,4 @@
-import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS, StellarMemo } from './types.js';
+import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS, StellarMemo, FeeTier, FeeEstimate } from './types.js';
 import { decodeErrorCode, DecodedError } from './errors.js';
 
 export class SafeguardClient {
@@ -187,7 +187,7 @@ export class SafeguardClient {
    * Convert stroops (1 XLM = 10,000,000 stroops) to decimal XLM string representation.
    */
   public static stroopsToXlm(stroops: bigint | string): string {
-    const s = typeof stroops === 'string' ? BigInt(stroops) : stroops;
+    const s = typeof stroops === 'bigint' ? stroops : BigInt(stroops);
     const whole = s / 10000000n;
     const rem = s % 10000000n;
     if (rem === 0n) return `${whole}`;
@@ -237,6 +237,37 @@ export class SafeguardClient {
    */
   public isAddressCompliant(address: string): boolean {
     return !this.isDenylisted(address);
+  }
+
+  /**
+   * Calculate dynamic transaction fee estimate incorporating base fee recommendations and Soroban resource charges.
+   */
+  public calculateDynamicFeeEstimate(
+    amountStroops: bigint,
+    tier: FeeTier = 'normal',
+    customBaseFee?: number
+  ): FeeEstimate {
+    const isEscrow = amountStroops > this.spendCap;
+    const resourceFeeStroops = isEscrow ? 739209 : 19137;
+
+    let baseFeeStroops = customBaseFee || 100;
+    if (!customBaseFee) {
+      if (tier === 'low') baseFeeStroops = 100;
+      else if (tier === 'normal') baseFeeStroops = 200;
+      else if (tier === 'priority') baseFeeStroops = 1000;
+    }
+
+    const totalEstimatedFeeStroops = resourceFeeStroops + baseFeeStroops;
+    const totalEstimatedFeeXlm = SafeguardClient.stroopsToXlm(totalEstimatedFeeStroops);
+
+    return {
+      tier,
+      baseFeeStroops,
+      resourceFeeStroops,
+      totalEstimatedFeeStroops,
+      totalEstimatedFeeXlm,
+      isEscrow,
+    };
   }
 
   /**
