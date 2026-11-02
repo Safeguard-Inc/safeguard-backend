@@ -29,6 +29,10 @@ export class SorobanIndexer {
   private eventsProcessed = 0;
   private lastSyncTime: number | null = null;
   private healthy = true;
+  private consecutiveErrors = 0;
+  private baseRetryMs = 2_000;
+  private maxRetryMs = 60_000;
+  private pollIntervalMs = 15_000;
 
   constructor(
     rpcEndpoint = 'https://soroban-testnet.stellar.org',
@@ -96,6 +100,7 @@ export class SorobanIndexer {
       this.lastLedger = currentSequence;
       this.lastSyncTime = Date.now();
       this.healthy = true;
+      this.consecutiveErrors = 0;
 
       if (!res.events || res.events.length === 0) {
         return 0;
@@ -109,6 +114,7 @@ export class SorobanIndexer {
       this.eventsProcessed += count;
       return count;
     } catch (err) {
+      this.consecutiveErrors++;
       this.healthy = false;
       return 0;
     }
@@ -146,6 +152,12 @@ export class SorobanIndexer {
     } catch {}
   }
 
+  public getBackoffDelay(errors: number): number {
+    if (errors <= 0) return this.pollIntervalMs;
+    const delay = this.baseRetryMs * Math.pow(2, errors - 1);
+    return Math.min(this.maxRetryMs, delay);
+  }
+
   public getStatus(): IndexerStatus {
     return {
       active: this.isRunning,
@@ -155,6 +167,8 @@ export class SorobanIndexer {
       eventsProcessed: this.eventsProcessed,
       lastSyncTime: this.lastSyncTime,
       healthy: this.healthy,
+      consecutiveErrors: this.consecutiveErrors,
+      currentIntervalMs: this.healthy ? this.pollIntervalMs : this.getBackoffDelay(this.consecutiveErrors),
     };
   }
 }
