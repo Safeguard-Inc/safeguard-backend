@@ -102,15 +102,40 @@ export function createRouter(client: SafeguardClient): Router {
     try {
       const parsed = batchSimulateSchema.parse(req.body);
       const results = [];
+      let approvedCount = 0;
+      let escrowedCount = 0;
+      let blockedCount = 0;
+      let totalApprovedStroops = 0n;
+      let totalEscrowedStroops = 0n;
+      let totalBlockedStroops = 0n;
 
       for (const item of parsed.payments) {
-        const res = await client.simulatePayment(item);
-        results.push({ input: item, verdict: res });
+        const sim = await client.simulatePayment(item);
+        const amt = BigInt(item.amount);
+        if (sim.decision === 'APPROVE') {
+          approvedCount++;
+          totalApprovedStroops += amt;
+        } else if (sim.decision === 'FLAG') {
+          escrowedCount++;
+          totalEscrowedStroops += amt;
+        } else {
+          blockedCount++;
+          totalBlockedStroops += amt;
+        }
+        results.push({ input: item, verdict: sim });
       }
 
       res.json({
         success: true,
         count: results.length,
+        summary: {
+          approvedCount,
+          escrowedCount,
+          blockedCount,
+          totalApprovedStroops: totalApprovedStroops.toString(),
+          totalEscrowedStroops: totalEscrowedStroops.toString(),
+          totalBlockedStroops: totalBlockedStroops.toString(),
+        },
         data: results,
       });
     } catch (err: any) {
@@ -185,6 +210,61 @@ export function createRouter(client: SafeguardClient): Router {
     }
     const decoded = client.decodeError(code);
     res.json({ success: true, data: decoded });
+  });
+
+  /**
+   * Live Server-Sent Events (SSE) Stream for ledger and indexer notifications
+   */
+  router.get('/api/events/stream', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const initial = JSON.stringify({
+      type: 'connected',
+      timestamp: Date.now(),
+      status: defaultIndexer.getStatus(),
+    });
+    res.write(`data: ${initial}\n\n`);
+
+    const interval = setInterval(() => {
+      const data = JSON.stringify({
+        type: 'heartbeat',
+        timestamp: Date.now(),
+        indexer: defaultIndexer.getStatus(),
+        recentTxs: defaultStore.getTransactions(5).length,
+      });
+      res.write(`data: ${data}\n\n`);
+    }, 15_000);
+
+    req.on('close', () => {
+      clearInterval(interval);
+    });
+  });
+
+  /**
+   * OpenAPI Specification Endpoint
+   */
+  router.get('/api/openapi.json', (_req: Request, res: Response) => {
+    res.json({
+      openapi: '3.1.0',
+      info: {
+        title: 'Safeguard Compliance & Payment Gateway API',
+        version: '0.1.0',
+        description: 'REST API for pre-flight compliance simulation, Soroban contract event ingestion, and escrow management on Stellar.',
+      },
+      paths: {
+        '/health': { get: { summary: 'Basic service health check' } },
+        '/health/deep': { get: { summary: 'Deep RPC and indexer diagnostics' } },
+        '/api/pay/simulate': { post: { summary: 'Simulate a single payment against on-chain policies' } },
+        '/api/pay/simulate-batch': { post: { summary: 'Batch simulate enterprise payroll or treasury payouts' } },
+        '/api/transactions': { get: { summary: 'List recent on-chain and simulated transactions' } },
+        '/api/escrows': { get: { summary: 'List pending and settled escrows' } },
+        '/api/denylist/check/{address}': { get: { summary: 'Check if an address is denylisted' } },
+        '/api/events/stream': { get: { summary: 'Server-Sent Events live status stream' } },
+      },
+    });
   });
 
   return router;

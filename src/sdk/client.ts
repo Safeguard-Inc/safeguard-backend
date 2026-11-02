@@ -115,4 +115,33 @@ export class SafeguardClient {
   public getConfig(): NetworkConfig {
     return { ...this.config };
   }
+
+  /**
+   * Fast compliance pre-check: returns true if the address is not on the denylist.
+   */
+  public isAddressCompliant(address: string): boolean {
+    return !this.isDenylisted(address);
+  }
+
+  /**
+   * Estimate Soroban invocation fee in stroops based on whether amount triggers direct or escrow routing.
+   */
+  public estimatePaymentFee(amountStroops: bigint): number {
+    return amountStroops > this.spendCap ? 739309 : 19237;
+  }
+
+  /**
+   * Get summarized policy metadata for client dashboards.
+   */
+  public getPolicySummary(): {
+    spendCapStroops: string;
+    denylistedCount: number;
+    paymentContractId: string;
+  } {
+    return {
+      spendCapStroops: this.spendCap.toString(),
+      denylistedCount: this.denylist.size,
+      paymentContractId: this.config.paymentContractId,
+    };
+  }
 }
