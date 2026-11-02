@@ -92,5 +92,34 @@ describe('SafeguardClient SDK Tests', () => {
     const configErr = getError(9002);
     assert.equal(configErr.mnemonic, 'CONTRACT_NOT_INITIALIZED');
   });
-});
+  test('converts between stroops and XLM cleanly', () => {
+    assert.equal(SafeguardClient.stroopsToXlm(10000000n), '1');
+    assert.equal(SafeguardClient.stroopsToXlm('50000000'), '5');
+    assert.equal(SafeguardClient.stroopsToXlm(15500000n), '1.55');
+    assert.equal(SafeguardClient.stroopsToXlm(1234567n), '0.1234567');
 
+    assert.equal(SafeguardClient.xlmToStroops('1'), 10000000n);
+    assert.equal(SafeguardClient.xlmToStroops(5), 50000000n);
+    assert.equal(SafeguardClient.xlmToStroops('1.55'), 15500000n);
+  });
+
+  test('validates payment parameters', () => {
+    const valid = client.validatePaymentParams({
+      sender: 'GBBM6WDF6SMPGMBCQXAWOJZZQB65SUWAAK4EDLOH7OQH226BC4STTU3V',
+      recipient: 'GC2U3YSOCCLOHKADJ4INRHJDFVDMGZX3WWTPH7V62MQWETUD4LR4HDCA',
+      token: 'CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN',
+      amount: '500000000',
+    });
+    assert.equal(valid.valid, true);
+    assert.equal(valid.errors.length, 0);
+
+    const invalid = client.validatePaymentParams({
+      sender: '',
+      recipient: '',
+      token: '',
+      amount: '-50',
+    });
+    assert.equal(invalid.valid, false);
+    assert.equal(invalid.errors.length, 4);
+  });
+});

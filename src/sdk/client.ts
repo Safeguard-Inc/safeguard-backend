@@ -117,6 +117,55 @@ export class SafeguardClient {
   }
 
   /**
+   * Convert stroops (1 XLM = 10,000,000 stroops) to decimal XLM string representation.
+   */
+  public static stroopsToXlm(stroops: bigint | string): string {
+    const s = typeof stroops === 'string' ? BigInt(stroops) : stroops;
+    const whole = s / 10000000n;
+    const rem = s % 10000000n;
+    if (rem === 0n) return `${whole}`;
+    const fraction = rem.toString().padStart(7, '0').replace(/0+$/, '');
+    return `${whole}.${fraction}`;
+  }
+
+  /**
+   * Convert decimal XLM string or number to stroops (bigint).
+   */
+  public static xlmToStroops(xlm: string | number): bigint {
+    const str = xlm.toString().trim();
+    const parts = str.split('.');
+    const whole = BigInt(parts[0] || '0');
+    const fractionStr = (parts[1] || '').slice(0, 7).padEnd(7, '0');
+    const fraction = BigInt(fractionStr);
+    return whole * 10000000n + fraction;
+  }
+
+  /**
+   * Validate payment parameters prior to evaluation or simulation.
+   */
+  public validatePaymentParams(params: PaymentParams): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    if (!params.sender || !params.sender.trim()) {
+      errors.push('Sender address is required');
+    }
+    if (!params.recipient || !params.recipient.trim()) {
+      errors.push('Recipient address is required');
+    }
+    if (!params.token || !params.token.trim()) {
+      errors.push('Token address is required');
+    }
+    try {
+      const amt = BigInt(params.amount);
+      if (amt <= 0n) {
+        errors.push('Amount must be positive');
+      }
+    } catch {
+      errors.push('Amount must be a valid integer string representing stroops');
+    }
+    return { valid: errors.length === 0, errors };
+  }
+
+  /**
    * Fast compliance pre-check: returns true if the address is not on the denylist.
    */
   public isAddressCompliant(address: string): boolean {
