@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { SafeguardClient } from '../sdk/client.js';
 import { defaultStore } from './store.js';
 import { defaultIndexer } from './indexer.js';
+import { defaultDispatcher } from './webhooks.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -184,7 +185,46 @@ export function createRouter(client: SafeguardClient): Router {
    * Get Persistent Activity Log with optional pagination & status filtering
    */
   /**
-   * Get Aggregate Compliance & Telemetry Stats
+   * Webhook Subscriptions Management
+   */
+  router.get('/api/webhooks/subscriptions', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: defaultDispatcher.getSubscriptions(),
+    });
+  });
+
+  router.post('/api/webhooks/subscribe', (req: Request, res: Response) => {
+    try {
+      const { url, events, secret } = req.body;
+      if (!url || typeof url !== 'string') {
+        res.status(400).json({ success: false, error: 'Valid URL is required' });
+        return;
+      }
+      const sub = defaultDispatcher.register({
+        id: `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        url,
+        events: Array.isArray(events) && events.length > 0 ? events : ['*'],
+        secret: secret || 'safeguard-webhook-secret-default',
+        active: true,
+      });
+      res.status(201).json({ success: true, data: sub });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/api/webhooks/subscriptions/:id', (req: Request, res: Response) => {
+    const deleted = defaultDispatcher.unregister(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ success: false, error: 'Subscription not found' });
+      return;
+    }
+    res.json({ success: true, message: 'Subscription removed' });
+  });
+
+  /**
+   * Aggregate Compliance & Telemetry Stats
    */
   router.get('/api/stats', (_req: Request, res: Response) => {
     const stats = defaultStore.getComplianceStats();
