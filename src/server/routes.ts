@@ -590,6 +590,41 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Inspect Webhook Dead Letter Queue (DLQ)
+   */
+  router.get('/api/webhooks/dlq', (_req: Request, res: Response) => {
+    const dlq = defaultDispatcher.getDeadLetterQueue();
+    res.json({
+      success: true,
+      count: dlq.length,
+      items: dlq,
+    });
+  });
+
+  /**
+   * Clear Webhook Dead Letter Queue (DLQ)
+   */
+  router.delete('/api/webhooks/dlq', (_req: Request, res: Response) => {
+    defaultDispatcher.clearDeadLetterQueue();
+    res.json({
+      success: true,
+      message: 'Dead letter queue cleared',
+    });
+  });
+
+  /**
+   * Replay Webhook Dead Letter Queue items
+   */
+  router.post('/api/webhooks/dlq/replay', async (req: Request, res: Response) => {
+    const limit = req.body && req.body.limit ? parseInt(String(req.body.limit), 10) : undefined;
+    const replayedCount = await defaultDispatcher.replayDeadLetterQueue(limit);
+    res.json({
+      success: true,
+      replayedCount,
+    });
+  });
+
+  /**
    * Aggregate Compliance & Telemetry Stats
    */
   router.get('/api/stats', (_req: Request, res: Response) => {

@@ -223,6 +223,15 @@ export class WebhookDispatcher {
     this.deadLetterQueue = [];
   }
 
+  public async replayDeadLetterQueue(limit?: number): Promise<number> {
+    const count = limit ? Math.min(limit, this.deadLetterQueue.length) : this.deadLetterQueue.length;
+    const itemsToReplay = this.deadLetterQueue.splice(0, count);
+    for (const item of itemsToReplay) {
+      await this.dispatch(item.event);
+    }
+    return itemsToReplay.length;
+  }
+
   private pushToDeadLetterQueue(delivery: DeadLetterDelivery): void {
     this.deadLetterQueue.unshift(delivery);
     if (this.deadLetterQueue.length > this.maxDlqSize) {
