@@ -15,6 +15,7 @@ import { ContractConfigResolver } from '../sdk/contractConfigResolver.js';
 import { InstitutionalBalanceSheetReportGenerator } from '../sdk/balanceSheetGenerator.js';
 import { EscrowFinancialAggregator } from '../sdk/escrowAggregator.js';
 import { GatewayTelemetryAggregator } from '../sdk/gatewayTelemetry.js';
+import { RegulatoryCompliancePacketExporter } from '../sdk/compliancePacketExporter.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -759,6 +760,60 @@ export function createRouter(client: SafeguardClient): Router {
     res.json({
       success: true,
       statement,
+    });
+  });
+
+  /**
+   * Export Comprehensive Sealed Regulatory Compliance Packet
+   */
+  router.get('/api/export/compliance-packet', (req: Request, res: Response) => {
+    const format = ((req.query.format as string) || 'json').toLowerCase();
+    const inst = (req.query.institution as string) || 'Safeguard Institutional Client';
+    const jur = (req.query.jurisdiction as string) || 'US-OFAC / FinCEN';
+    const download = req.query.download === 'true';
+
+    const stats = defaultStore.getComplianceStats();
+    const allEscrows = defaultStore.getEscrows();
+    const metrics = EscrowFinancialAggregator.aggregate(allEscrows);
+    const syncStatus = defaultLedgerMonitor.getStatus();
+
+    const lockedUsd = Number(metrics.totalVolumeLocked) / 10_000_000;
+    const settledUsd = Number(metrics.totalVolumeSettled) / 10_000_000;
+
+    const packet = RegulatoryCompliancePacketExporter.build({
+      institutionName: inst,
+      jurisdiction: jur,
+      auditMetrics: {
+        totalTransactions: stats.totalTransactions,
+        approvalRatePercent: stats.approvalRatePercent,
+        sanctionsHitsBlocked: stats.blockedCount,
+      },
+      balanceSheetSummary: {
+        totalLockedCollateralUsd: Math.round(lockedUsd * 100) / 100,
+        totalSettledVolumeUsd: Math.round(settledUsd * 100) / 100,
+        reportingCurrency: 'USD',
+      },
+      telemetryStatus: {
+        synchronized: syncStatus ? syncStatus.isHealthy : true,
+        circuitBreakerPaused: stagedIsPaused,
+        ledgerSequence: defaultIndexer.getStatus().lastLedger || 0,
+      },
+    });
+
+    const filename = `safeguard-compliance-packet-${Date.now()}.${format === 'markdown' ? 'md' : 'json'}`;
+    if (download) {
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    }
+
+    if (format === 'markdown') {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      const md = RegulatoryCompliancePacketExporter.formatSummaryMarkdown(packet);
+      return res.send(md);
+    }
+
+    res.json({
+      success: true,
+      packet,
     });
   });
 
