@@ -33,7 +33,45 @@ export interface ConfigHealthEvaluation {
   issues: string[];
 }
 
+export interface PauseStatusPayload {
+  isPaused: boolean;
+  pausedUntil: number; // Unix timestamp in seconds, 0 = indefinite/none
+  pausedBy: string | null;
+  remainingSeconds: number; // calculated relative to currentTime
+  autoResumeAt: string | null; // ISO string if pausedUntil > 0
+  circuitBreakerState: 'ACTIVE_PAUSED' | 'TIMELOCKED_PAUSED' | 'NORMAL_OPERATIONAL';
+}
+
 export class ContractConfigResolver {
+  /**
+   * Resolves emergency circuit breaker pause status and computes remaining timelock seconds.
+   */
+  public static resolvePauseStatus(
+    isPaused: boolean,
+    pausedUntil: number = 0,
+    pausedBy: string | null = null,
+    nowEpochSec: number = Math.floor(Date.now() / 1000)
+  ): PauseStatusPayload {
+    const expired = isPaused && pausedUntil > 0 && nowEpochSec >= pausedUntil;
+    const effectivePaused = isPaused && !expired;
+    const remainingSeconds = effectivePaused && pausedUntil > 0 ? Math.max(0, pausedUntil - nowEpochSec) : 0;
+    const autoResumeAt = effectivePaused && pausedUntil > 0 ? new Date(pausedUntil * 1000).toISOString() : null;
+
+    let circuitBreakerState: 'ACTIVE_PAUSED' | 'TIMELOCKED_PAUSED' | 'NORMAL_OPERATIONAL' = 'NORMAL_OPERATIONAL';
+    if (effectivePaused) {
+      circuitBreakerState = pausedUntil > 0 ? 'TIMELOCKED_PAUSED' : 'ACTIVE_PAUSED';
+    }
+
+    return {
+      isPaused: effectivePaused,
+      pausedUntil,
+      pausedBy,
+      remainingSeconds,
+      autoResumeAt,
+      circuitBreakerState,
+    };
+  }
+
   /**
    * Evaluates the operational readiness and risk profile of the payment gateway contract.
    */

@@ -11,6 +11,7 @@ import { metricsCollector } from './metrics.js';
 import { buildSep10Challenge, verifySep10Challenge } from '../sdk/sep10.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { defaultRateLimiter } from './middleware/rateLimit.js';
+import { ContractConfigResolver } from '../sdk/contractConfigResolver.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -899,6 +900,53 @@ export function createRouter(client: SafeguardClient): Router {
       },
     };
     res.json({ success: true, contracts });
+  });
+
+  /**
+   * Emergency circuit breaker pause status and timelock telemetry
+   */
+  let stagedPausedUntil = 0;
+  let stagedPausedBy: string | null = null;
+  let stagedIsPaused = false;
+
+  router.get('/api/compliance/pause-status', (req: Request, res: Response) => {
+    const isPausedParam = req.query.isPaused !== undefined ? req.query.isPaused === 'true' : stagedIsPaused;
+    const pausedUntilParam = req.query.pausedUntil ? parseInt(req.query.pausedUntil as string, 10) : stagedPausedUntil;
+    const pausedByParam = (req.query.pausedBy as string) || stagedPausedBy;
+
+    const payload = ContractConfigResolver.resolvePauseStatus(
+      isPausedParam,
+      pausedUntilParam,
+      pausedByParam
+    );
+
+    res.json({
+      success: true,
+      data: payload,
+    });
+  });
+
+  router.post('/api/compliance/pause-status/simulate', (req: Request, res: Response) => {
+    const { isPaused, durationSeconds, caller } = req.body || {};
+    stagedIsPaused = Boolean(isPaused);
+    stagedPausedBy = caller || 'GADMIN...EMERGENCY';
+    if (stagedIsPaused && durationSeconds && Number(durationSeconds) > 0) {
+      stagedPausedUntil = Math.floor(Date.now() / 1000) + Number(durationSeconds);
+    } else {
+      stagedPausedUntil = 0;
+    }
+
+    const payload = ContractConfigResolver.resolvePauseStatus(
+      stagedIsPaused,
+      stagedPausedUntil,
+      stagedPausedBy
+    );
+
+    res.json({
+      success: true,
+      message: stagedIsPaused ? 'Emergency circuit breaker engaged' : 'Emergency circuit breaker cleared',
+      data: payload,
+    });
   });
 
   /**
