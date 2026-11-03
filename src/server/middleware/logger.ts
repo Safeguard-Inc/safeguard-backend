@@ -49,7 +49,10 @@ export function createStructuredLogger(
 
       if (customWriter) {
         customWriter(entry);
-      } else if (process.env.NODE_ENV !== 'test') {
+      } else if (
+        process.env.NODE_ENV !== 'test' &&
+        !process.env.npm_lifecycle_event?.includes('test')
+      ) {
         process.stdout.write(JSON.stringify(entry) + '\n');
       }
     });
