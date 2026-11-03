@@ -12,6 +12,8 @@ import { buildSep10Challenge, verifySep10Challenge } from '../sdk/sep10.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { defaultRateLimiter } from './middleware/rateLimit.js';
 import { ContractConfigResolver } from '../sdk/contractConfigResolver.js';
+import { InstitutionalBalanceSheetReportGenerator } from '../sdk/balanceSheetGenerator.js';
+import { EscrowFinancialAggregator } from '../sdk/escrowAggregator.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -697,6 +699,66 @@ export function createRouter(client: SafeguardClient): Router {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(AuditLogStreamExporter.toNdjson(auditEvents));
     }
+  });
+
+  /**
+   * Export Institutional Balance Sheet & Collateral Statement
+   */
+  router.get('/api/export/balance-sheet', (req: Request, res: Response) => {
+    const format = ((req.query.format as string) || 'json').toLowerCase();
+    const org = (req.query.organization as string) || 'Safeguard Institutional Treasury';
+    const download = req.query.download === 'true';
+
+    const allEscrows = defaultStore.getEscrows();
+    const metrics = EscrowFinancialAggregator.aggregate(allEscrows);
+
+    const tokenLines = Object.values(metrics.tokenBreakdown).map((b) => {
+      let unitPriceUsd = 1.0;
+      if (b.token.toUpperCase().includes('XLM')) unitPriceUsd = 0.12;
+      else if (b.token.toUpperCase().includes('EURC')) unitPriceUsd = 1.08;
+      else if (b.token.toUpperCase().includes('USDC') || b.token.toUpperCase().includes('PYUSD')) unitPriceUsd = 1.0;
+
+      return {
+        tokenSymbol: b.token,
+        contractAddress: b.token,
+        lockedStroops: b.pendingVolume.toString(),
+        settledStroops: b.settledVolume.toString(),
+        unitPriceUsd,
+      };
+    });
+
+    if (tokenLines.length === 0) {
+      tokenLines.push({
+        tokenSymbol: 'USDC',
+        contractAddress: 'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
+        lockedStroops: '0',
+        settledStroops: '0',
+        unitPriceUsd: 1.0,
+      });
+    }
+
+    const statement = InstitutionalBalanceSheetReportGenerator.generate({
+      organization: org,
+      tokenLines,
+      activeEscrowsCount: metrics.statusCounts.Pending || 0,
+      disputedEscrowsCount: metrics.statusCounts.Disputed || 0,
+    });
+
+    const filename = `safeguard-balance-sheet-${Date.now()}.${format === 'markdown' ? 'md' : 'json'}`;
+    if (download) {
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    }
+
+    if (format === 'markdown') {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      const md = InstitutionalBalanceSheetReportGenerator.formatMarkdown(statement);
+      return res.send(md);
+    }
+
+    res.json({
+      success: true,
+      statement,
+    });
   });
 
   /**
