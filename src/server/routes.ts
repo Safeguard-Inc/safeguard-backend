@@ -181,6 +181,22 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Batch Sanctions Screening Endpoint
+   */
+  router.post('/api/compliance/sanctions/batch', (req: Request, res: Response) => {
+    const addresses = Array.isArray(req.body.addresses) ? req.body.addresses : [];
+    const results = client.checkSanctionsBatch(addresses);
+    const sanctionedCount = results.filter((r) => r.isSanctioned).length;
+    res.json({
+      success: true,
+      count: addresses.length,
+      sanctionedCount,
+      allClear: sanctionedCount === 0,
+      results,
+    });
+  });
+
+  /**
    * Simulate a Payment against Policy Rules
    */
   router.post('/api/pay/simulate', async (req: Request, res: Response) => {

@@ -42,6 +42,35 @@ export class SafeguardClient {
     });
   }
 
+  private sanctions: Map<string, { listId: string; status: 'ACTIVE' | 'RETIRED'; datasetVersion: number; matchedAt: number }> = new Map();
+
+  public setSanctionsEntries(entries: Array<{ address: string; listId: string; status?: 'ACTIVE' | 'RETIRED'; datasetVersion?: number }>): void {
+    for (const e of entries) {
+      this.sanctions.set(e.address.trim().toUpperCase(), {
+        listId: e.listId,
+        status: e.status || 'ACTIVE',
+        datasetVersion: e.datasetVersion || 1,
+        matchedAt: Date.now(),
+      });
+    }
+  }
+
+  public getSanctionsEntry(address: string) {
+    return this.sanctions.get(address.trim().toUpperCase());
+  }
+
+  public checkSanctionsBatch(addresses: string[]): Array<{ address: string; isSanctioned: boolean; details?: { listId: string; status: 'ACTIVE' | 'RETIRED'; datasetVersion: number } }> {
+    return addresses.map((addr) => {
+      const entry = this.getSanctionsEntry(addr);
+      const isSanctioned = Boolean(entry && entry.status === 'ACTIVE');
+      return {
+        address: addr,
+        isSanctioned,
+        details: entry ? { listId: entry.listId, status: entry.status, datasetVersion: entry.datasetVersion } : undefined,
+      };
+    });
+  }
+
   public checkDenylistBatch(addresses: string[]): Array<{ address: string; isDenylisted: boolean }> {
     return addresses.map((addr) => ({
       address: addr,
