@@ -6,6 +6,8 @@ import { defaultIndexer } from './indexer.js';
 import { defaultDispatcher } from './webhooks.js';
 import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
 import { metricsCollector } from './metrics.js';
+import { buildSep10Challenge, verifySep10Challenge } from '../sdk/sep10.js';
+import { Keypair } from '@stellar/stellar-sdk';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -32,6 +34,58 @@ export function createRouter(client: SafeguardClient): Router {
 
   // Mirror the live contract's denylist so simulations match on-chain results.
   client.setDenylist([DENYLISTED]);
+
+  const authServerKeypair = Keypair.random();
+  const authHomeDomain = 'safeguard.finance';
+
+  /**
+   * SEP-0010 Challenge Issuance
+   */
+  router.get('/api/auth/challenge', (req: Request, res: Response) => {
+    const account = req.query.account as string;
+    if (!account || !account.startsWith('G') || account.length !== 56) {
+      return res.status(400).json({ success: false, error: 'Valid Stellar account public key (G...) is required' });
+    }
+
+    const { transactionXdr, networkPassphrase } = buildSep10Challenge({
+      serverKeypair: authServerKeypair,
+      clientPublicKey: account,
+      homeDomain: authHomeDomain,
+    });
+
+    res.json({
+      success: true,
+      transactionXdr,
+      networkPassphrase,
+      serverPublicKey: authServerKeypair.publicKey(),
+    });
+  });
+
+  /**
+   * SEP-0010 Challenge Verification
+   */
+  router.post('/api/auth/verify', (req: Request, res: Response) => {
+    const { transactionXdr } = req.body;
+    if (!transactionXdr || typeof transactionXdr !== 'string') {
+      return res.status(400).json({ success: false, error: 'transactionXdr string is required' });
+    }
+
+    const result = verifySep10Challenge(
+      transactionXdr,
+      authServerKeypair.publicKey(),
+      authHomeDomain
+    );
+
+    if (!result.valid) {
+      return res.status(401).json({ success: false, error: result.error });
+    }
+
+    res.json({
+      success: true,
+      authenticatedAddress: result.clientPublicKey,
+      issuedAt: Date.now(),
+    });
+  });
 
   /**
    * Basic Health Check

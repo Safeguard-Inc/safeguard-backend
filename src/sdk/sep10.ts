@@ -170,3 +170,17 @@ export function verifySep10Challenge(
     };
   }
 }
+
+
+/**
+ * Signs a SEP-0010 challenge transaction with the client's keypair.
+ */
+export function signSep10Challenge(
+  transactionXdr: string,
+  clientKeypair: Keypair,
+  networkPassphrase = Networks.TESTNET
+): string {
+  const tx = new Transaction(transactionXdr, networkPassphrase);
+  tx.sign(clientKeypair);
+  return tx.toXDR();
+}
