@@ -561,6 +561,26 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Partially release an active escrow
+   */
+  router.post('/api/escrows/:id/release-partial', (req: Request, res: Response) => {
+    const idParam = req.params.id;
+    const escrowIndex = parseInt(idParam, 10);
+    if (isNaN(escrowIndex)) {
+      return res.status(400).json({ success: false, error: 'Invalid escrow id' });
+    }
+    const { amount } = req.body;
+    if (amount === undefined || amount === null || amount === '') {
+      return res.status(400).json({ success: false, error: 'amount parameter is required' });
+    }
+    const result = defaultStore.releaseEscrowPartial(escrowIndex, amount);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    return res.json({ success: true, data: result.escrow });
+  });
+
+  /**
    * Get Indexer Status
    */
   router.get('/api/indexer/status', (_req: Request, res: Response) => {

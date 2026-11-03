@@ -242,6 +242,37 @@ export class DataStore {
     return true;
   }
 
+  public releaseEscrowPartial(escrowIndex: number, amountStr: string | number): { success: boolean; escrow?: StoredEscrow; error?: string } {
+    const e = this.escrows.find((item) => item.escrowIndex === escrowIndex);
+    if (!e) {
+      return { success: false, error: 'Escrow not found' };
+    }
+    if (e.status !== 'Pending') {
+      return { success: false, error: `Cannot release escrow with status ${e.status}` };
+    }
+    try {
+      const releaseAmount = BigInt(amountStr);
+      const currentAmount = BigInt(e.amount);
+      if (releaseAmount <= 0n) {
+        return { success: false, error: 'Partial release amount must be greater than 0' };
+      }
+      if (releaseAmount > currentAmount) {
+        return { success: false, error: 'Partial release amount exceeds escrow balance' };
+      }
+      const remaining = currentAmount - releaseAmount;
+      if (remaining === 0n) {
+        e.status = 'Released';
+        e.amount = '0';
+      } else {
+        e.amount = remaining.toString();
+      }
+      this.saveEscrows();
+      return { success: true, escrow: e };
+    } catch {
+      return { success: false, error: 'Invalid amount numeric format' };
+    }
+  }
+
   public getTransactionByHash(txHash: string): StoredTransaction | undefined {
     const clean = txHash.trim().toLowerCase();
     return this.transactions.find((tx) => tx.txHash?.toLowerCase() === clean);
