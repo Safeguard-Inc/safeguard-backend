@@ -17,3 +17,4 @@ export * from './auditLogExporter.js';
 export * from './contractConfigResolver.js';
 export * from './sep38QuoteHelper.js';
 export * from './liquidityPoolEstimator.js';
+export * from './dlqManager.js';
