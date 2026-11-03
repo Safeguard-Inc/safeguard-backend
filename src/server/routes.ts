@@ -5,6 +5,7 @@ import { defaultStore } from './store.js';
 import { defaultIndexer } from './indexer.js';
 import { defaultDispatcher } from './webhooks.js';
 import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
+import { metricsCollector } from './metrics.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -56,6 +57,14 @@ export function createRouter(client: SafeguardClient): Router {
       indexer: indexerStatus,
       uptimeSeconds: Math.floor(process.uptime()),
     });
+  });
+
+  /**
+   * Prometheus / OpenMetrics Metrics Exporter
+   */
+  router.get('/metrics', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(metricsCollector.exportMetrics());
   });
 
   /**
