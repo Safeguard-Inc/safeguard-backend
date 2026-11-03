@@ -20,3 +20,4 @@ export * from './liquidityPoolEstimator.js';
 export * from './dlqManager.js';
 export * from './balanceSheetGenerator.js';
 export * from './multiCurrencyEstimator.js';
+export * from './gatewayTelemetry.js';
