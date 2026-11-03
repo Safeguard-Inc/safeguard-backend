@@ -19,6 +19,29 @@ export class SafeguardClient {
     this.denylist = new Set(addresses.map((a) => a.trim().toUpperCase()));
   }
 
+  private jurisdictions: Map<string, number> = new Map();
+
+  public setJurisdictions(entries: Array<{ address: string; jurisdiction: number }>): void {
+    for (const e of entries) {
+      this.jurisdictions.set(e.address.trim().toUpperCase(), e.jurisdiction);
+    }
+  }
+
+  public getJurisdiction(address: string): number | undefined {
+    return this.jurisdictions.get(address.trim().toUpperCase());
+  }
+
+  public checkJurisdictionBatch(addresses: string[]): Array<{ address: string; jurisdiction?: number; isDomestic: boolean }> {
+    return addresses.map((addr) => {
+      const j = this.getJurisdiction(addr);
+      return {
+        address: addr,
+        jurisdiction: j,
+        isDomestic: j === 1 || j === 840,
+      };
+    });
+  }
+
   public checkDenylistBatch(addresses: string[]): Array<{ address: string; isDenylisted: boolean }> {
     return addresses.map((addr) => ({
       address: addr,

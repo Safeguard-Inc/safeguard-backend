@@ -168,6 +168,19 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Batch Jurisdiction Compliance Check Endpoint
+   */
+  router.post('/api/compliance/jurisdiction/batch', (req: Request, res: Response) => {
+    const addresses = Array.isArray(req.body.addresses) ? req.body.addresses : [];
+    const results = client.checkJurisdictionBatch(addresses);
+    res.json({
+      success: true,
+      count: addresses.length,
+      results,
+    });
+  });
+
+  /**
    * Simulate a Payment against Policy Rules
    */
   router.post('/api/pay/simulate', async (req: Request, res: Response) => {
