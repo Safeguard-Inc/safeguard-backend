@@ -319,6 +319,29 @@ export class DataStore {
     return { refunded, failed };
   }
 
+  public disputeEscrowsBatch(escrowIndices: number[]): { disputed: number[]; failed: { escrowIndex: number; error: string }[] } {
+    const disputed: number[] = [];
+    const failed: { escrowIndex: number; error: string }[] = [];
+
+    for (const idx of escrowIndices) {
+      const e = this.escrows.find((item) => item.escrowIndex === idx);
+      if (!e) {
+        failed.push({ escrowIndex: idx, error: 'Escrow not found' });
+        continue;
+      }
+      if (e.status !== 'Pending') {
+        failed.push({ escrowIndex: idx, error: `Escrow cannot be disputed in status ${e.status}` });
+        continue;
+      }
+      e.status = 'Disputed';
+      disputed.push(idx);
+    }
+    if (disputed.length > 0) {
+      this.saveEscrows();
+    }
+    return { disputed, failed };
+  }
+
   public getTransactionByHash(txHash: string): StoredTransaction | undefined {
     const clean = txHash.trim().toLowerCase();
     return this.transactions.find((tx) => tx.txHash?.toLowerCase() === clean);
