@@ -736,6 +736,27 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Bulk refund multiple active escrows
+   */
+  router.post('/api/escrows/batch/refund', (req: Request, res: Response) => {
+    const { escrowIds } = req.body;
+    if (!Array.isArray(escrowIds) || escrowIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'escrowIds must be a non-empty array of numbers' });
+    }
+    const parsedIds = escrowIds.map((id) => parseInt(String(id), 10));
+    if (parsedIds.some((id) => isNaN(id))) {
+      return res.status(400).json({ success: false, error: 'All escrowIds must be valid numbers' });
+    }
+    const result = defaultStore.refundEscrowsBatch(parsedIds);
+    res.json({
+      success: true,
+      refundedCount: result.refunded.length,
+      refunded: result.refunded,
+      failed: result.failed,
+    });
+  });
+
+  /**
    * Get Indexer Status
    */
   router.get('/api/indexer/status', (_req: Request, res: Response) => {
