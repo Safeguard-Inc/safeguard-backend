@@ -8,6 +8,7 @@ import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
 import { metricsCollector } from './metrics.js';
 import { buildSep10Challenge, verifySep10Challenge } from '../sdk/sep10.js';
 import { Keypair } from '@stellar/stellar-sdk';
+import { defaultRateLimiter } from './middleware/rateLimit.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -320,6 +321,26 @@ export function createRouter(client: SafeguardClient): Router {
     } catch (err: any) {
       res.status(400).json({ success: false, error: err.message || 'Invalid fee query parameters' });
     }
+  });
+
+  /**
+   * System Rate Limit Inspection Endpoint
+   */
+  router.get('/api/system/limits', (req: Request, res: Response) => {
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const state = defaultRateLimiter.getClientState(ip);
+    const stats = defaultRateLimiter.getStats();
+    res.json({
+      success: true,
+      data: {
+        clientIp: ip,
+        limit: stats.maxTokens,
+        remaining: state.tokensRemaining,
+        refillRatePerSec: stats.refillRatePerSec,
+        resetSeconds: state.resetSeconds,
+        activeClients: stats.totalActiveClients,
+      },
+    });
   });
 
   router.get('/api/tokens', (_req: Request, res: Response) => {

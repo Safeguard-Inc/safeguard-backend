@@ -11,13 +11,20 @@ export interface RateLimitOptions {
   skipPaths?: string[];
 }
 
-export function createRateLimiter(options?: RateLimitOptions) {
+export interface RateLimiterMiddleware {
+  (req: Request, res: Response, next: NextFunction): void;
+  getStats: () => { totalActiveClients: number; maxTokens: number; refillRatePerSec: number };
+  getClientState: (ip: string) => { tokensRemaining: number; resetSeconds: number };
+  reset: () => void;
+}
+
+export function createRateLimiter(options?: RateLimitOptions): RateLimiterMiddleware {
   const maxTokens = options?.maxTokens || 60; // 60 requests
   const refillRate = options?.refillRatePerSec || 1; // 1 token per second
   const skipPaths = options?.skipPaths || ['/health', '/health/deep'];
   const clientMap = new Map<string, RateLimitRecord>();
 
-  return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const middleware: any = function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
     if (skipPaths.some((p) => req.path === p || req.path.startsWith(p + '/'))) {
       next();
       return;
@@ -63,4 +70,33 @@ export function createRateLimiter(options?: RateLimitOptions) {
 
     next();
   };
+
+  middleware.getStats = () => ({
+    totalActiveClients: clientMap.size,
+    maxTokens,
+    refillRatePerSec: refillRate,
+  });
+
+  middleware.getClientState = (ip: string) => {
+    const record = clientMap.get(ip);
+    if (!record) {
+      return { tokensRemaining: maxTokens, resetSeconds: 0 };
+    }
+    const now = Date.now();
+    const elapsedSec = (now - record.lastRefill) / 1000;
+    const currentTokens = Math.min(maxTokens, record.tokens + elapsedSec * refillRate);
+    const resetSec = Math.ceil((maxTokens - currentTokens) / refillRate);
+    return {
+      tokensRemaining: Math.max(0, Math.floor(currentTokens)),
+      resetSeconds: Math.max(0, resetSec),
+    };
+  };
+
+  middleware.reset = () => {
+    clientMap.clear();
+  };
+
+  return middleware as RateLimiterMiddleware;
 }
+
+export const defaultRateLimiter = createRateLimiter();
