@@ -350,6 +350,50 @@ export function createRouter(client: SafeguardClient): Router {
     });
   });
 
+  /**
+   * Get All Per-Token Spend Caps & Default Spend Cap
+   */
+  router.get('/api/tokens/spend-caps', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: {
+        defaultSpendCap: client.getEffectiveSpendCap().toString(),
+        tokenSpendCaps: client.getAllTokenSpendCaps(),
+      },
+    });
+  });
+
+  /**
+   * Configure or Remove Per-Token Spend Cap
+   */
+  router.post('/api/tokens/spend-caps', (req: Request, res: Response) => {
+    const { token, cap, action } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ success: false, error: 'token address is required' });
+    }
+
+    if (action === 'remove') {
+      const removed = client.removeTokenSpendCap(token);
+      return res.json({ success: true, action: 'remove', token, removed });
+    }
+
+    if (!cap) {
+      return res.status(400).json({ success: false, error: 'cap amount is required' });
+    }
+
+    try {
+      client.setTokenSpendCap(token, cap);
+      return res.json({
+        success: true,
+        action: 'set',
+        token,
+        cap: cap.toString(),
+      });
+    } catch (err: any) {
+      return res.status(400).json({ success: false, error: err.message || 'Invalid cap amount' });
+    }
+  });
+
   router.get('/api/policies', (_req: Request, res: Response) => {
     res.json({
       success: true,

@@ -101,6 +101,36 @@ export class SafeguardClient {
     this.spendCap = BigInt(cap);
   }
 
+  private tokenSpendCaps: Map<string, bigint> = new Map();
+
+  public setTokenSpendCap(token: string, cap: bigint | string | number): void {
+    this.tokenSpendCaps.set(token.trim().toUpperCase(), BigInt(cap));
+  }
+
+  public getTokenSpendCap(token: string): bigint | undefined {
+    return this.tokenSpendCaps.get(token.trim().toUpperCase());
+  }
+
+  public removeTokenSpendCap(token: string): boolean {
+    return this.tokenSpendCaps.delete(token.trim().toUpperCase());
+  }
+
+  public getEffectiveSpendCap(token?: string): bigint {
+    if (token) {
+      const custom = this.getTokenSpendCap(token);
+      if (custom !== undefined) return custom;
+    }
+    return this.spendCap;
+  }
+
+  public getAllTokenSpendCaps(): Record<string, string> {
+    const res: Record<string, string> = {};
+    for (const [k, v] of this.tokenSpendCaps.entries()) {
+      res[k] = v.toString();
+    }
+    return res;
+  }
+
   /**
    * Validate Stellar payment memo format and bounds.
    */
@@ -209,14 +239,15 @@ export class SafeguardClient {
         estimatedFeeStroops: 0,
         timestamp,
       };
-    } else if (amount > this.spendCap) {
+    } else if (amount > this.getEffectiveSpendCap(params.token)) {
       // 4. Spend cap check (diverts to Escrow if exceeded)
+      const effectiveCap = this.getEffectiveSpendCap(params.token);
       result = {
         decision: 'FLAG',
         reason: 'Payment exceeds spend cap threshold; will be held in on-chain Escrow for review',
         reasonCode: 6,
         isEscrow: true,
-        spendCap: this.spendCap.toString(),
+        spendCap: effectiveCap.toString(),
         estimatedFeeStroops: 739309,
         timestamp,
       };
