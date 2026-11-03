@@ -7,3 +7,4 @@ export * from './rpcProvider.js';
 export * from './csvImport.js';
 export * from './txBuilder.js';
 export * from './batchCsvGenerator.js';
+export * from './jurisdiction.js';
