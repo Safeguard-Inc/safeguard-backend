@@ -33,6 +33,7 @@ export interface ComplianceStats {
   releasedEscrows: number;
   refundedEscrows: number;
   disputedEscrows: number;
+  arbitratedEscrows: number;
   totalVolumeStroops: string;
   lastUpdated: number;
 }
@@ -278,11 +279,13 @@ export class DataStore {
     let releasedEscrows = 0;
     let refundedEscrows = 0;
     let disputedEscrows = 0;
+    let arbitratedEscrows = 0;
     for (const e of this.escrows) {
       if (e.status === 'Pending') pendingEscrows++;
       else if (e.status === 'Released') releasedEscrows++;
       else if (e.status === 'Refunded') refundedEscrows++;
       else if (e.status === 'Disputed') disputedEscrows++;
+      else if (e.status === 'Arbitrated') arbitratedEscrows++;
     }
 
     const totalTransactions = this.transactions.length;
@@ -301,6 +304,7 @@ export class DataStore {
       releasedEscrows,
       refundedEscrows,
       disputedEscrows,
+      arbitratedEscrows,
       totalVolumeStroops: totalVolume.toString(),
       lastUpdated: Date.now(),
     };
