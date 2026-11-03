@@ -19,3 +19,4 @@ export * from './sep38QuoteHelper.js';
 export * from './liquidityPoolEstimator.js';
 export * from './dlqManager.js';
 export * from './balanceSheetGenerator.js';
+export * from './multiCurrencyEstimator.js';
