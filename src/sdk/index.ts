@@ -22,3 +22,4 @@ export * from './balanceSheetGenerator.js';
 export * from './multiCurrencyEstimator.js';
 export * from './gatewayTelemetry.js';
 export * from './compliancePacketExporter.js';
+export * from './disbursementEngine.js';
