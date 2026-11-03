@@ -117,4 +117,79 @@ describe('Safeguard Webhook Dispatcher Tests', () => {
       server.close();
     }
   });
+
+  test('retries transient failures and succeeds on subsequent attempt', async () => {
+    const dispatcher = new WebhookDispatcher();
+    dispatcher.register({
+      id: 'sub-retry',
+      url: 'https://example.com/retry-hook',
+      events: ['escrow.created'],
+      secret: 'secret-retry',
+      active: true,
+    });
+
+    let callCount = 0;
+    const mockFetch = async (): Promise<Response> => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Connection reset by peer');
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    };
+
+    const results = await dispatcher.dispatchWithRetry(
+      {
+        id: 'evt-retry-1',
+        type: 'escrow.created',
+        timestamp: 1700000000,
+        payload: { amount: '500' },
+      },
+      3,
+      mockFetch as typeof fetch
+    );
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].success, true);
+    assert.equal(results[0].retriesAttempted, 1);
+    assert.equal(dispatcher.getDeadLetterQueue().length, 0);
+  });
+
+  test('archives delivery to dead-letter queue after exhausting all retries', async () => {
+    const dispatcher = new WebhookDispatcher();
+    dispatcher.register({
+      id: 'sub-failing',
+      url: 'https://broken.endpoint.com/webhook',
+      events: ['system.alert'],
+      secret: 'secret-fail',
+      active: true,
+    });
+
+    const mockFetch = async (): Promise<Response> => {
+      throw new Error('HTTP 503 Service Unavailable');
+    };
+
+    const results = await dispatcher.dispatchWithRetry(
+      {
+        id: 'evt-dead-1',
+        type: 'system.alert',
+        timestamp: 1700000000,
+        payload: { alert: 'critical' },
+      },
+      2,
+      mockFetch as typeof fetch
+    );
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].success, false);
+    assert.equal(results[0].retriesAttempted, 3); // initial + 2 retries
+
+    const dlq = dispatcher.getDeadLetterQueue();
+    assert.equal(dlq.length, 1);
+    assert.equal(dlq[0].event.id, 'evt-dead-1');
+    assert.equal(dlq[0].subscriptionId, 'sub-failing');
+    assert.match(dlq[0].error, /503 Service Unavailable/);
+
+    dispatcher.clearDeadLetterQueue();
+    assert.equal(dispatcher.getDeadLetterQueue().length, 0);
+  });
 });
