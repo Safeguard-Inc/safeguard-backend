@@ -7,7 +7,7 @@ import { createApp } from '../src/server/app.js';
 describe('Safeguard Backend Store & Indexer Tests', () => {
   test('DataStore persists and retrieves transactions and escrows', () => {
     const store = new DataStore();
-    const initialCount = store.getTransactions().length;
+    const initialCount = store.getTransactionCount();
 
     store.addTransaction({
       id: `test-tx-${Date.now()}`,
@@ -20,7 +20,7 @@ describe('Safeguard Backend Store & Indexer Tests', () => {
       timestamp: Date.now(),
     });
 
-    assert.equal(store.getTransactions().length, initialCount + 1);
+    assert.equal(store.getTransactionCount(), initialCount + 1);
 
     const escrows = store.getEscrows();
     assert.ok(Array.isArray(escrows));
