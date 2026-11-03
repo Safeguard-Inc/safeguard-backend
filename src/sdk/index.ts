@@ -4,3 +4,4 @@ export * from './client.js';
 export * from './receipt.js';
 export * from './sep10.js';
 export * from './rpcProvider.js';
+export * from './csvImport.js';
