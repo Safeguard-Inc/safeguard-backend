@@ -156,6 +156,38 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Get Supported SAC Tokens
    */
+  /**
+   * Get Network Fee Recommendations and Dynamic Estimates
+   */
+  router.get('/api/network/fee', (req: Request, res: Response) => {
+    try {
+      const amountStr = String(req.query.amount || '10000000');
+      const tier = (req.query.tier as 'low' | 'normal' | 'priority') || 'normal';
+      const amount = BigInt(amountStr);
+
+      const estimateLow = client.calculateDynamicFeeEstimate(amount, 'low');
+      const estimateNormal = client.calculateDynamicFeeEstimate(amount, 'normal');
+      const estimatePriority = client.calculateDynamicFeeEstimate(amount, 'priority');
+
+      res.json({
+        success: true,
+        data: {
+          network: 'stellar-testnet',
+          baseFeeStroops: 100,
+          currentEstimate: client.calculateDynamicFeeEstimate(amount, tier),
+          recommendedTiers: {
+            low: estimateLow,
+            normal: estimateNormal,
+            priority: estimatePriority,
+          },
+          timestamp: Date.now(),
+        },
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message || 'Invalid fee query parameters' });
+    }
+  });
+
   router.get('/api/tokens', (_req: Request, res: Response) => {
     res.json({
       success: true,
