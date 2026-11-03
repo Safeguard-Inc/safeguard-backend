@@ -135,6 +135,39 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Batch Denylist Check Endpoint
+   */
+  router.post('/api/compliance/denylist/batch', (req: Request, res: Response) => {
+    const addresses = Array.isArray(req.body.addresses) ? req.body.addresses : [];
+    const results = client.checkDenylistBatch(addresses);
+    const totalBlocked = results.filter((r) => r.isDenylisted).length;
+    res.json({
+      success: true,
+      totalChecked: addresses.length,
+      totalBlocked,
+      results,
+    });
+  });
+
+  /**
+   * Batch Denylist Mutation Endpoint (Add / Remove)
+   */
+  router.post('/api/compliance/denylist/batch/mutate', (req: Request, res: Response) => {
+    const action = req.body.action;
+    const addresses = Array.isArray(req.body.addresses) ? req.body.addresses : [];
+
+    if (action === 'add') {
+      client.addToDenylist(addresses);
+      return res.json({ success: true, action: 'add', count: addresses.length });
+    } else if (action === 'remove') {
+      client.removeFromDenylist(addresses);
+      return res.json({ success: true, action: 'remove', count: addresses.length });
+    }
+
+    return res.status(400).json({ success: false, error: 'action must be "add" or "remove"' });
+  });
+
+  /**
    * Simulate a Payment against Policy Rules
    */
   router.post('/api/pay/simulate', async (req: Request, res: Response) => {

@@ -19,6 +19,25 @@ export class SafeguardClient {
     this.denylist = new Set(addresses.map((a) => a.trim().toUpperCase()));
   }
 
+  public checkDenylistBatch(addresses: string[]): Array<{ address: string; isDenylisted: boolean }> {
+    return addresses.map((addr) => ({
+      address: addr,
+      isDenylisted: this.isDenylisted(addr),
+    }));
+  }
+
+  public addToDenylist(addresses: string[]): void {
+    for (const addr of addresses) {
+      this.denylist.add(addr.trim().toUpperCase());
+    }
+  }
+
+  public removeFromDenylist(addresses: string[]): void {
+    for (const addr of addresses) {
+      this.denylist.delete(addr.trim().toUpperCase());
+    }
+  }
+
   public isDenylisted(address: string): boolean {
     return this.denylist.has(address.trim().toUpperCase());
   }
