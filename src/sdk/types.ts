@@ -36,7 +36,7 @@ export interface SimulationResult {
   timestamp: number;
 }
 
-export type EscrowStatus = 'Pending' | 'Released' | 'Refunded';
+export type EscrowStatus = 'Pending' | 'Released' | 'Refunded' | 'Disputed' | 'Arbitrated';
 
 export interface EscrowRecord {
   id: number;

@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { EscrowStatus } from '../sdk/types';
 
 export interface StoredTransaction {
   id: string;
@@ -31,6 +32,7 @@ export interface ComplianceStats {
   pendingEscrows: number;
   releasedEscrows: number;
   refundedEscrows: number;
+  disputedEscrows: number;
   totalVolumeStroops: string;
   lastUpdated: number;
 }
@@ -57,7 +59,7 @@ export interface StoredEscrow {
   sender: string;
   recipient: string;
   expiresAt: number;
-  status: 'Pending' | 'Released' | 'Refunded';
+  status: EscrowStatus;
   txHash?: string;
 }
 
@@ -214,7 +216,7 @@ export class DataStore {
     this.saveTransactions();
   }
 
-  public getEscrows(status?: 'Pending' | 'Released' | 'Refunded'): StoredEscrow[] {
+  public getEscrows(status?: EscrowStatus): StoredEscrow[] {
     if (status) {
       return this.escrows.filter((e) => e.status === status);
     }
@@ -231,7 +233,7 @@ export class DataStore {
     this.saveEscrows();
   }
 
-  public updateEscrowStatus(escrowIndex: number, status: 'Released' | 'Refunded'): boolean {
+  public updateEscrowStatus(escrowIndex: number, status: EscrowStatus): boolean {
     const e = this.escrows.find((item) => item.escrowIndex === escrowIndex);
     if (!e) return false;
     e.status = status;
@@ -275,10 +277,12 @@ export class DataStore {
     let pendingEscrows = 0;
     let releasedEscrows = 0;
     let refundedEscrows = 0;
+    let disputedEscrows = 0;
     for (const e of this.escrows) {
       if (e.status === 'Pending') pendingEscrows++;
       else if (e.status === 'Released') releasedEscrows++;
       else if (e.status === 'Refunded') refundedEscrows++;
+      else if (e.status === 'Disputed') disputedEscrows++;
     }
 
     const totalTransactions = this.transactions.length;
@@ -296,6 +300,7 @@ export class DataStore {
       pendingEscrows,
       releasedEscrows,
       refundedEscrows,
+      disputedEscrows,
       totalVolumeStroops: totalVolume.toString(),
       lastUpdated: Date.now(),
     };
