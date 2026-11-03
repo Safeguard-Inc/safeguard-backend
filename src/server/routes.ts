@@ -14,6 +14,7 @@ import { defaultRateLimiter } from './middleware/rateLimit.js';
 import { ContractConfigResolver } from '../sdk/contractConfigResolver.js';
 import { InstitutionalBalanceSheetReportGenerator } from '../sdk/balanceSheetGenerator.js';
 import { EscrowFinancialAggregator } from '../sdk/escrowAggregator.js';
+import { GatewayTelemetryAggregator } from '../sdk/gatewayTelemetry.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -1008,6 +1009,37 @@ export function createRouter(client: SafeguardClient): Router {
       success: true,
       message: stagedIsPaused ? 'Emergency circuit breaker engaged' : 'Emergency circuit breaker cleared',
       data: payload,
+    });
+  });
+
+  /**
+   * Gateway and node telemetry snapshot with indexer reconciliation
+   */
+  router.get('/api/telemetry/snapshot', (req: Request, res: Response) => {
+    const onChain = {
+      currentSequence: req.query.currentSequence ? parseInt(req.query.currentSequence as string, 10) : defaultStore.getTransactionCount(),
+      totalEscrows: req.query.totalEscrows ? parseInt(req.query.totalEscrows as string, 10) : defaultStore.getEscrowCount(),
+      totalVolumeStroops: (req.query.totalVolume as string) || defaultStore.getComplianceStats().totalVolumeStroops,
+      activeSpendCapStroops: '500000000',
+      isPaused: stagedIsPaused,
+    };
+
+    const lagStatus = defaultLedgerMonitor.getStatus();
+    const backend = {
+      indexedTransactionsCount: defaultStore.getTransactionCount(),
+      indexedEscrowsCount: defaultStore.getEscrowCount(),
+      syncedLedgerSequence: defaultIndexer.getStatus().lastLedger || 0,
+      ledgerLagSeconds: lagStatus ? lagStatus.estimatedLagSeconds : 0,
+    };
+
+    const reconciliation = GatewayTelemetryAggregator.reconcile(onChain, backend);
+
+    res.json({
+      success: true,
+      reconciliation,
+      onChain,
+      backend,
+      timestamp: Date.now(),
     });
   });
 
