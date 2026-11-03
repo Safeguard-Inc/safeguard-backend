@@ -451,6 +451,101 @@ export function createRouter(client: SafeguardClient): Router {
     });
   });
 
+  const CANONICAL_POLICY_RULES = [
+    {
+      id: 'rule-sanctions',
+      category: 'SANCTIONS',
+      name: 'Sanctions List Check',
+      description: 'Autonomous evaluation against on-chain OFAC and multilateral sanctions registry',
+      precedence: 1,
+      action: 'BLOCK',
+      enabled: true,
+    },
+    {
+      id: 'rule-status',
+      category: 'ACCOUNT_STATUS',
+      name: 'Account Freeze Guard',
+      description: 'Enforces frozen account flags and inactive lifecycle states before token transfer',
+      precedence: 2,
+      action: 'BLOCK',
+      enabled: true,
+    },
+    {
+      id: 'rule-denylist',
+      category: 'DENYLIST',
+      name: 'Dynamic Denylist Screening',
+      description: 'Immediate blocking of explicitly denylisted counterparty addresses',
+      precedence: 3,
+      action: 'BLOCK',
+      enabled: true,
+    },
+    {
+      id: 'rule-spend-cap',
+      category: 'SPEND_CAP',
+      name: 'Spend Cap & Escrow Routing',
+      description: 'Threshold enforcement diverting large volume payments to escrow for compliance review',
+      precedence: 4,
+      action: 'FLAG',
+      enabled: true,
+    },
+    {
+      id: 'rule-jurisdiction',
+      category: 'JURISDICTION',
+      name: 'Jurisdiction & Cross-Border Compliance',
+      description: 'Screens counterparty ISO 3166-1 jurisdictions against FATF high-risk territories',
+      precedence: 5,
+      action: 'FLAG',
+      enabled: true,
+    },
+    {
+      id: 'rule-allowlist',
+      category: 'ALLOWLIST',
+      name: 'Verified Partner Allowlist',
+      description: 'Whitelisted institutional addresses exempt from automated velocity holds',
+      precedence: 6,
+      action: 'ALLOW',
+      enabled: true,
+    },
+  ];
+
+  /**
+   * Get Standard Policy Rules
+   */
+  router.get('/api/policy/rules', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      data: CANONICAL_POLICY_RULES,
+      ruleCount: CANONICAL_POLICY_RULES.length,
+    });
+  });
+
+  /**
+   * Batch Query Policy Rules
+   */
+  router.post('/api/policy/batch-rules', (req: Request, res: Response) => {
+    const { policyIds } = req.body;
+    if (!Array.isArray(policyIds) || policyIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'policyIds must be a non-empty array of strings' });
+    }
+
+    const results = policyIds.map((policyId: string) => {
+      const cleanId = String(policyId).trim();
+      return {
+        policyId: cleanId,
+        version: 1,
+        active: true,
+        ruleCount: CANONICAL_POLICY_RULES.length,
+        rules: CANONICAL_POLICY_RULES,
+      };
+    });
+
+    res.json({
+      success: true,
+      totalPolicies: results.length,
+      results,
+    });
+  });
+
   /**
    * Get Persistent Activity Log with optional pagination & status filtering
    */
