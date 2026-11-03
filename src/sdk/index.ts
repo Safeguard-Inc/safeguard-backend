@@ -14,3 +14,4 @@ export * from './footprintAnalyzer.js';
 export * from './auditReportGenerator.js';
 export * from './escrowAggregator.js';
 export * from './auditLogExporter.js';
+export * from './contractConfigResolver.js';
