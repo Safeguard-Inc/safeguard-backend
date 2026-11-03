@@ -823,6 +823,26 @@ export function createRouter(client: SafeguardClient): Router {
   });
 
   /**
+   * Get Live Contract Configuration and Addresses
+   */
+  router.get('/api/config/contracts', (_req: Request, res: Response) => {
+    const contracts = {
+      network: process.env.STELLAR_NETWORK || 'testnet',
+      rpcUrl: process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
+      paymentsContract: process.env.PAYMENTS_CONTRACT_ID || 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM',
+      policyContract: process.env.POLICY_CONTRACT_ID || 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4',
+      config: {
+        admin: 'GC5MCMHHMFV7GOQ7DVN7MOTMHGTMVIP3YFQAAVFZ6WKUE6SLGQBVODW4',
+        spendCapStroops: '500000000',
+        escrowPeriodSeconds: 3600,
+        isPaused: false,
+        schemaVersion: 1,
+      },
+    };
+    res.json({ success: true, contracts });
+  });
+
+  /**
    * Decode an error code
    */
   router.get('/api/errors/:code', (req: Request, res: Response) => {
