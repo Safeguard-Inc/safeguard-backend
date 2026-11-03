@@ -9,3 +9,4 @@ export * from './txBuilder.js';
 export * from './batchCsvGenerator.js';
 export * from './jurisdiction.js';
 export * from './sep8.js';
+export * from './kycMonitor.js';
