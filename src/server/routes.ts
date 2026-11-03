@@ -413,6 +413,17 @@ export function createRouter(client: SafeguardClient): Router {
     }
   });
 
+  /**
+   * Look up transaction by Stellar transaction hash
+   */
+  router.get('/api/transactions/hash/:hash', (req: Request, res: Response) => {
+    const tx = defaultStore.getTransactionByHash(req.params.hash);
+    if (!tx) {
+      return res.status(404).json({ success: false, error: 'Transaction not found for specified hash' });
+    }
+    res.json({ success: true, transaction: tx });
+  });
+
   router.get('/api/transactions', (req: Request, res: Response) => {
     const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
     const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;

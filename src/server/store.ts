@@ -242,6 +242,11 @@ export class DataStore {
     return true;
   }
 
+  public getTransactionByHash(txHash: string): StoredTransaction | undefined {
+    const clean = txHash.trim().toLowerCase();
+    return this.transactions.find((tx) => tx.txHash?.toLowerCase() === clean);
+  }
+
   public pruneOldTransactions(maxAgeMs = 30 * 24 * 60 * 60 * 1000): number {
     const cutoff = Date.now() - maxAgeMs;
     const initialLen = this.transactions.length;
