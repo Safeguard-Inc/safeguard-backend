@@ -1,26 +1,30 @@
 # Contributing to Safeguard Backend & SDK
 
-We welcome community contributions, bug reports, and pull requests.
+Thank you for your interest in contributing to Safeguard Backend & SDK! We welcome contributions, feature enhancements, and bug reports.
 
-## Getting Started
+## Code of Conduct
 
-1. Clone and install:
-   ```bash
-   git clone https://github.com/Safeguard-Inc/safeguard-backend.git
-   cd safeguard-backend
-   npm install
-   ```
+All contributors and maintainers are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-2. Run tests:
-   ```bash
-   npm run test:ts
-   ```
+## Development Workflow
 
-3. Build:
-   ```bash
-   npm run build
-   ```
+### Prerequisites
+* Node.js 20+ (Node 22 and 25 supported)
+* npm 10+
 
-## PR Requirements
-* Ensure `npm run test:ts` and `npm run build` pass before submitting.
-* Reference the associated issue in your PR description.
+### Setup
+```bash
+git clone https://github.com/Safeguard-Inc/safeguard-backend.git
+cd safeguard-backend
+npm install
+npm run test:ts
+npm run build
+```
+
+### Pull Request & Commit Guidelines
+* We adhere to Conventional Commits: `feat:`, `fix:`, `test:`, `docs:`, `chore:`.
+* Ensure TypeScript compilation (`npx tsc --noEmit`) and unit tests (`npm run test:ts`) pass with zero errors.
+* Reference relevant issues in your PR description.
+
+## Security Vulnerabilities
+Please refer to [SECURITY.md](SECURITY.md) and report security findings to `security@safeguard.inc`.

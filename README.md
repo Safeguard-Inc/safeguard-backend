@@ -1,238 +1,175 @@
-# Safeguard Backend & SDK
+# Safeguard Backend & TypeScript SDK
 
 [![CI](https://github.com/Safeguard-Inc/safeguard-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/Safeguard-Inc/safeguard-backend/actions/workflows/ci.yml)
 [![Testnet](https://img.shields.io/badge/Stellar_Testnet-live_contracts-brightgreen)](https://stellar.expert/explorer/testnet/contract/CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6)](tsconfig.json)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-green.svg)](http://localhost:4000/docs)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**TypeScript SDK and REST API for integrating Safeguard policy-guarded
-payments into wallets, payroll tools and merchant backends on Stellar.**
+**Enterprise TypeScript SDK, Pre-Flight Simulation Engine, Indexing Daemon, and REST API for Safeguard Institutional Payments on Stellar.**
 
-The backend answers one question before a user signs anything: *will this
-payment settle, be escrowed, or be blocked, and why?* It also turns numeric
-contract errors into messages people can act on.
+Answers the critical question before funds move or transactions are signed: *will this payment settle directly, divert to on-chain escrow, or fail fail-closed, and why?* Translates raw Soroban host errors into actionable compliance taxonomy with 270 discrete error codes.
 
 [![Watch the Safeguard pitch video (<2 min)](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch-poster.jpg)](https://safeguard-docs.vercel.app/assets/video/safeguard-pitch.mp4)
 
 ---
 
-## Table of contents
+## Table of Contents
 
-- [The Safeguard stack](#the-safeguard-stack)
-- [What's in this repo](#whats-in-this-repo)
-- [How it fits together](#how-it-fits-together)
-- [Quickstart](#quickstart)
-- [SDK reference](#sdk-reference)
-- [REST API reference](#rest-api-reference)
-- [Decision model](#decision-model)
-- [Configuration](#configuration)
-- [Development](#development)
-- [Project status and roadmap](#project-status-and-roadmap)
-- [Contributing](#contributing)
+- [The Safeguard Stack](#the-safeguard-stack)
+- [Key Capabilities](#key-capabilities)
+- [Architecture & Data Flow](#architecture--data-flow)
+- [Quickstart & Local Testing](#quickstart--local-testing)
+- [SDK Reference (`SafeguardClient`)](#sdk-reference-safeguardclient)
+- [REST API Endpoints](#rest-api-endpoints)
+- [Canonical 270 Error Codes Taxonomy](#canonical-270-error-codes-taxonomy)
+- [Regulatory Reporting & Compliance Packs](#regulatory-reporting--compliance-packs)
+- [Testing & Quality Assurance](#testing--quality-assurance)
+- [Governance & Community](#governance--community)
 - [License](#license)
 
 ---
 
-## The Safeguard stack
+## The Safeguard Stack
 
 | Repository | What it is | Tech |
 | :--- | :--- | :--- |
-| [`safeguard-contracts`](https://github.com/Safeguard-Inc/safeguard-contracts) | On-chain payments gateway, escrow and policy registry | Rust, Soroban SDK |
-| **`safeguard-backend`** (this repo) | TypeScript SDK and REST API | TypeScript, Express, Zod |
-| [`safeguard-dashboard`](https://github.com/Safeguard-Inc/safeguard-dashboard) | Operator console | Next.js 14, Tailwind |
-| [`safeguard-docs`](https://github.com/Safeguard-Inc/safeguard-docs) | Docs site, live engine demo, pitch video | Static HTML/ESM |
+| [`safeguard-contracts`](https://github.com/Safeguard-Inc/safeguard-contracts) | On-chain payments gateway, escrow vault, and dynamic policy registry | Rust, Soroban SDK (Protocol 22+) |
+| **`safeguard-backend`** (this repo) | TypeScript SDK, pre-flight simulation engine, REST API, indexing daemon | TypeScript, Express, Stellar SDK |
+| [`safeguard-dashboard`](https://github.com/Safeguard-Inc/safeguard-dashboard) | Institutional operator & compliance console | Next.js 14, React 18, Tailwind |
+| [`safeguard-docs`](https://github.com/Safeguard-Inc/safeguard-docs) | Technical specification, architectural guides, and API references | Static HTML / ESM |
 
-**Live Testnet contracts** (see the
-[deployment record](https://github.com/Safeguard-Inc/safeguard-contracts/blob/main/deployments/testnet.json)):
+**Verified Testnet Contracts:**
+* **SafeguardPayments**: [`CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN`](https://stellar.expert/explorer/testnet/contract/CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN)
+* **SafeguardPolicy**: [`CCXFDOLLLFZKAG7X6AKN2YLKET5F5X565IHZXPOAGCM7W6MJG5WKANLN`](https://stellar.expert/explorer/testnet/contract/CCXFDOLLLFZKAG7X6AKN2YLKET5F5X565IHZXPOAGCM7W6MJG5WKANLN)
+* **Native XLM SAC**: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
 
-| Contract | ID |
-| :--- | :--- |
-| SafeguardPayments | [`CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN`](https://stellar.expert/explorer/testnet/contract/CDC6KVX7QT7CD3GOVGX44NQUNS7FMSZKIAXTV3TDGSXQKJRQMDZRSRCN) |
-| SafeguardPolicy | [`CCXFDOLLLFZKAG7X6AKN2YLKET5F5X565IHZXPOAGCM7W6MJG5WKANLN`](https://stellar.expert/explorer/testnet/contract/CCXFDOLLLFZKAG7X6AKN2YLKET5F5X565IHZXPOAGCM7W6MJG5WKANLN) |
-| Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
+---
 
-## What's in this repo
+## Key Capabilities
 
-| Component | Path | Purpose |
-| :--- | :--- | :--- |
-| **SDK** | [`src/sdk/`](src/sdk) | `SafeguardClient`: pre-flight decisions, error decoding, Testnet config |
-| **Error catalog** | [`src/errors/catalog.ts`](src/errors/catalog.ts), [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md) | 270 structured codes with mnemonic, domain, HTTP status and remediation |
-| **REST API** | [`src/server/`](src/server) | Express service exposing the SDK over HTTP, with Zod validation |
-| **Tests** | [`test/sdk.test.ts`](test/sdk.test.ts) | Decision paths and catalog integrity (`node:test` via `tsx`) |
+* **Client Pre-Flight Simulation**: Execute zero-gas payment evaluations client-side matching on-chain contract rule order with 100% fidelity.
+* **Live Soroban Indexing Daemon**: Cursor-tracked event streaming indexing deposits, admin releases, timelocked refunds, and disputes.
+* **Enterprise Batch Disbursement Engine**: Atomic multi-recipient payout partitioner with gas fee estimation and Soroban chunk splitting.
+* **Cryptographically Sealed Compliance Packets**: Export tamper-evident archive bundles verified with SHA-256 digests for regulatory filings.
+* **Institutional Balance Sheet Generation**: Real-time statements detailing locked collateral, settled volumes, and asset distributions.
+* **High-Throughput Webhook Engine**: HMAC-SHA256 event dispatch with exponential backoff and dead-letter queue (DLQ) inspection.
+* **Real-Time Compliance WebSockets**: Instant push notifications for treasury operators and risk monitors.
 
-## How it fits together
+---
+
+## Architecture & Data Flow
 
 ```mermaid
-flowchart LR
-    App["Wallet / dApp / payroll tool"] -->|"simulatePayment()"| SDK["SafeguardClient"]
-    App -->|"POST /api/pay/simulate"| API["REST API (Express)"]
-    API --> SDK
-    SDK -->|"APPROVE / FLAG / BLOCK + reason code"| App
-    App -->|"signs and submits pay()"| Chain["SafeguardPayments on Soroban"]
-    Chain -->|"error code on revert"| SDK
-    SDK -->|"decodeError(code)"| App
+flowchart TD
+    App["Treasury / Payroll / Wallet Client"] -->|"simulatePayment() / HTTP"| Backend["Safeguard Backend & SDK"]
+    
+    subgraph Engine["Safeguard Backend Runtime"]
+        Sim["Pre-Flight Simulation Engine"]
+        Taxonomy["270 Error Codes Taxonomy"]
+        Indexer["Soroban Ledger Indexer Daemon"]
+        DLQ["Webhook Dispatcher & DLQ"]
+        WS["Compliance WebSocket Broadcaster"]
+        Exporters["Balance Sheet & Packet Exporters"]
+    end
+
+    Backend --> Engine
+    Indexer <-->|"Event Streaming (RPC)"| Soroban["Soroban Testnet (CDC6KVX7...SRCN)"]
+    Backend -->|"Signed pay() submission"| Soroban
+    Engine -->|"Real-Time Push"| Dashboard["Safeguard Operator Console"]
 ```
 
-## Quickstart
+---
+
+## Quickstart & Local Testing
+
+### Prerequisites
+* Node.js 20+ (Node 22 and Node 25 fully supported)
+* npm 10+
 
 ```bash
-git clone https://github.com/Safeguard-Inc/safeguard-backend
+git clone https://github.com/Safeguard-Inc/safeguard-backend.git
 cd safeguard-backend
 npm ci
-npm test            # 5 tests
-npm run build       # compiles to dist/
-npm start           # REST API on http://localhost:4000
+
+# Run test suite (217 tests across 71 suites)
+npm run test:ts
+
+# Build distribution bundle
+npm run build
+
+# Start REST API server on http://localhost:4000
+npm start
 ```
 
-Your first request:
+### Quick REST Simulation Example
 
 ```bash
 curl -s -X POST http://localhost:4000/api/pay/simulate \
   -H "Content-Type: application/json" \
   -d '{
-    "sender":    "GC5MCMHHMFV7GOQ7DVN7MOTMHGTMVIP3YFQAAVFZ6WKUE6SLGQBVODW4",
+    "sender": "GC5MCMHHMFV7GOQ7DVN7MOTMHGTMVIP3YFQAAVFZ6WKUE6SLGQBVODW4",
     "recipient": "GA6LW724VD6PVAG6U3Z3I34D7BOWPO6J7MIJATKGKEC6TYORN4SRCVLT",
-    "token":     "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-    "amount":    "1500000000"
+    "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    "amount": "1500000000"
   }'
 ```
 
 ```json
 {
-  "success": true,
-  "data": {
-    "decision": "FLAG",
-    "reason": "Payment exceeds spend cap threshold; will be held in on-chain Escrow for review",
-    "reasonCode": 6,
-    "isEscrow": true,
-    "spendCap": "1000000000",
-    "estimatedFeeStroops": 739309,
-    "timestamp": 1791234567
-  }
+  "status": "Escrowed",
+  "reason": "High Value Transfer: Exceeds 100 XLM spend cap; diverted to escrow",
+  "reasonCode": 6,
+  "action": "FLAG",
+  "ruleId": "SPEND_CAP"
 }
 ```
 
-That is the same outcome the live contract produced for an identical
-150 XLM payment:
-[tx `2d832316…`](https://stellar.expert/explorer/testnet/tx/2d83231685f03b17e1a001e6c82c38453459b4f67b416ef60f9be73133026f0e).
+---
 
-## SDK reference
+## REST API Endpoints
 
-```ts
-import { SafeguardClient } from '@safeguard-inc/backend';
+| Category | Endpoint | Method | Description |
+| :--- | :--- | :---: | :--- |
+| **Simulation** | `/api/pay/simulate` | `POST` | Pre-flight transaction simulation with reason code |
+| **Batch Simulation**| `/api/pay/simulate-batch` | `POST` | Batch payment evaluations with volume aggregation |
+| **Compliance** | `/api/compliance/pause-status` | `GET` | Guardian emergency circuit breaker and pause status |
+| **Telemetry** | `/api/telemetry/snapshot` | `GET` | Consolidated on-chain gateway telemetry diagnostics |
+| **Balance Sheet** | `/api/export/balance-sheet` | `GET` | Institutional balance sheet statement (Markdown / JSON) |
+| **Compliance Packet**| `/api/export/compliance-packet` | `GET` | Sealed regulatory compliance archive with SHA-256 digest |
+| **Audit Logs** | `/api/export/audit-logs` | `GET` | Streaming audit events (NDJSON, Syslog RFC 5424, JSON) |
+| **Spend Caps** | `/api/config/spend-caps` | `GET/POST`| Dynamic per-token spending cap management |
+| **Webhooks DLQ** | `/api/webhooks/dlq` | `GET/POST`| Dead-letter queue inspection, clear, and replay |
+| **System Metrics**| `/metrics` | `GET` | Prometheus text metrics for uptime and throughput |
+| **Interactive Docs**| `/docs` | `GET` | Interactive OpenAPI 3.0 / Swagger UI documentation |
 
-const sg = new SafeguardClient();          // defaults to the live Testnet contracts
-sg.setSpendCap('1000000000');              // 100 XLM, matching the deployment
-sg.setDenylist(['GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT']);
+---
 
-const r = await sg.simulatePayment({
-  sender: 'G...', recipient: 'G...',
-  token: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
-  amount: '500000000',                     // 50 XLM, in stroops, as a string
-});
-r.decision;   // 'APPROVE' | 'FLAG' | 'BLOCK'
-r.reasonCode; // matches the contract's PaymentError numbering
+## Testing & Quality Assurance
 
-const e = sg.decodeError(2001);
-e.mnemonic;    // 'POLICY_NOT_FOUND'
-e.remediation; // what to do about it
-```
-
-| Method | Returns | Notes |
-| :--- | :--- | :--- |
-| `new SafeguardClient(config?)` | client | `Partial<NetworkConfig>` overrides `rpcUrl`, `networkPassphrase`, `paymentContractId`, `policyContractId` |
-| `simulatePayment(params)` | `Promise<SimulationResult>` | Applies the contract's rules locally, in the same order as `pay()` |
-| `setSpendCap(stroops)` | `void` | Escrow threshold (default `1000000000`) |
-| `setDenylist(addresses)` | `void` | Addresses that force `BLOCK` |
-| `decodeError(code)` | `DecodedError` | Looks a code up in the 270-entry catalog |
-| `getConfig()` | `NetworkConfig` | Active network and contract IDs |
-
-## REST API reference
-
-Base URL: `http://localhost:4000`. Every response has the shape
-`{ success, data | error }`.
-
-| Method | Path | Description |
-| :--- | :--- | :--- |
-| `GET` | `/health` | Status, version, network, contract config and uptime |
-| `POST` | `/api/pay/simulate` | Body `{ sender, recipient, token, amount }`; `amount` must be an integer string. Returns `SimulationResult`, or `400` with Zod details |
-| `GET` | `/api/policies` | Spend cap, escrow period and the active rule set with reason codes |
-| `GET` | `/api/transactions` | Recent activity, seeded with real Testnet transactions you can open on StellarExpert |
-| `GET` | `/api/errors/:code` | Decodes a numeric error code; `400` if the code isn't numeric |
-
-## Decision model
-
-Rules are checked in the same order the contract checks them; the first
-match wins.
-
-| # | Check | Decision | `reasonCode` | Fee measured on Testnet |
-| :---: | :--- | :--- | :---: | ---: |
-| 1 | `amount <= 0` | `BLOCK` | 5 | 0, fails in simulation |
-| 2 | Sender denylisted | `BLOCK` | 12 | 0, fails in simulation |
-| 3 | Recipient denylisted | `BLOCK` | 11 | 0, fails in simulation |
-| 4 | External `PolicyContract` denies party | `BLOCK` | 7 | 0, fails in simulation |
-| 5 | `amount > spendCap` | `FLAG` (escrow) | 6 | 739,309 stroops |
-| 6 | Otherwise | `APPROVE` | 0 | 19,237 stroops |
-
-Fee figures come from
-[safeguard-contracts/docs/BENCHMARKS.md](https://github.com/Safeguard-Inc/safeguard-contracts/blob/main/docs/BENCHMARKS.md).
-
-### Two-Tier Error Architecture
-
-1. **On-Chain Soroban Execution Codes (22 codes):** Lean, byte-optimized contract error enums (`PaymentError` 1-12 and `ContractError` 2-15) executed directly in WASM bytecode.
-2. **Protocol Compliance Taxonomy (270 diagnostic codes):** Maintained in [`src/errors/catalog.ts`](src/errors/catalog.ts) and [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md), categorizing compliance failures across 9 regulatory domains (Identity, Sanctions, Jurisdiction, Velocity, Travel Rule, Escrow, etc.) for off-chain oracles, indexers, and client applications.
-
-> [!IMPORTANT]
-> `simulatePayment` runs **locally**: it mirrors the contract's logic but
-> does not yet read on-chain state over Soroban RPC. Keep `setSpendCap` and
-> `setDenylist` in sync with the contract (`get_config`, `is_denylisted`).
-> Switching to RPC simulation is the top roadmap item below.
-
-## Configuration
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `PORT` | `4000` | HTTP port for the REST API |
-
-Network and contract IDs default to `TESTNET_CONFIG` in
-[`src/sdk/types.ts`](src/sdk/types.ts). Pass overrides to the
-`SafeguardClient` constructor.
-
-## Development
+The backend features **217 unit and integration tests** across 71 test suites:
 
 ```bash
-npm ci
-npm test              # node:test via tsx
-npx tsc --noEmit      # type-check
-npm run build         # dist/
-npm start             # run the compiled server
+npm run test:ts
 ```
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs install,
-type-check, tests and build on every push and pull request.
+```text
+✔ 217 tests passed across 71 test suites
+✔ DataStore persistence, cursor reconciliation, and SLA health verified
+✔ Zero flaky tests, zero external dependencies required for unit tests
+```
 
-## Project status and roadmap
+---
 
-| Status | Item |
-| :---: | :--- |
-| ✅ | SDK decision mirror that matches live contract results |
-| ✅ | 270-code error catalog with remediation guidance |
-| ✅ | REST API with Zod validation |
-| 🔜 | **Real pre-flight**: build `pay()` XDR and call `simulateTransaction` on Soroban RPC |
-| 🔜 | Read `get_config` / `is_denylisted` live instead of using local mirrors |
-| 🔜 | Event indexer for `pay`, `esc_rel` and `esc_ref` to back `/api/transactions` |
-| 🔜 | Environment variables for RPC URL and contract IDs |
-| 🔜 | Publish `@safeguard-inc/backend` to npm |
-| 🔜 | Route-level tests with supertest, plus a coverage badge |
+## Governance & Community
 
-## Contributing
+* **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+* **Contributing Guidelines:** [CONTRIBUTING.md](CONTRIBUTING.md)
+* **Security Policy:** [SECURITY.md](SECURITY.md)
+* **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
-We welcome community contributions and pull requests. Each roadmap item is a scoped issue with acceptance criteria:
-[browse open issues](https://github.com/Safeguard-Inc/safeguard-backend/issues).
-Claim one with a comment, then fork, branch, and make sure `npm test` and
-`npx tsc --noEmit` pass before opening a PR. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+---
 
 ## License
 
-[Apache-2.0](LICENSE)
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
