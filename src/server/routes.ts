@@ -11,11 +11,17 @@ const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 export function createRouter(client: SafeguardClient): Router {
   const router = Router();
 
+  const memoSchema = z.object({
+    type: z.enum(['none', 'text', 'id', 'hash', 'return', 'MEMO_TEXT', 'MEMO_ID', 'MEMO_HASH', 'MEMO_RETURN']),
+    value: z.string(),
+  });
+
   const simulateSchema = z.object({
     sender: z.string().min(1, 'Sender address is required'),
     recipient: z.string().min(1, 'Recipient address is required'),
     token: z.string().min(1, 'Token address is required'),
     amount: z.string().regex(/^\d+$/, 'Amount must be an integer string in stroops'),
+    memo: memoSchema.optional(),
     useCache: z.boolean().optional(),
   });
 
@@ -136,9 +142,11 @@ export function createRouter(client: SafeguardClient): Router {
           approvedCount,
           escrowedCount,
           blockedCount,
+          approvalRatePercent: results.length > 0 ? Math.round((approvedCount / results.length) * 100) : 0,
           totalApprovedStroops: totalApprovedStroops.toString(),
           totalEscrowedStroops: totalEscrowedStroops.toString(),
           totalBlockedStroops: totalBlockedStroops.toString(),
+          totalVolumeStroops: (totalApprovedStroops + totalEscrowedStroops + totalBlockedStroops).toString(),
         },
         data: results,
       });
