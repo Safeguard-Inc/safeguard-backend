@@ -17,6 +17,8 @@ export interface IndexerStatus {
   eventsProcessed: number;
   lastSyncTime: number | null;
   healthy: boolean;
+  consecutiveErrors?: number;
+  currentIntervalMs?: number;
 }
 
 export class SorobanIndexer {

@@ -186,7 +186,7 @@ export class SafeguardClient {
   /**
    * Convert stroops (1 XLM = 10,000,000 stroops) to decimal XLM string representation.
    */
-  public static stroopsToXlm(stroops: bigint | string): string {
+  public static stroopsToXlm(stroops: bigint | string | number): string {
     const s = typeof stroops === 'bigint' ? stroops : BigInt(stroops);
     const whole = s / 10000000n;
     const rem = s % 10000000n;

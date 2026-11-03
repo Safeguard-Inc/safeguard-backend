@@ -9,6 +9,13 @@ export interface FeeEstimate {
   isEscrow: boolean;
 }
 
+export type MemoType = 'none' | 'text' | 'id' | 'hash' | 'return' | 'MEMO_TEXT' | 'MEMO_ID' | 'MEMO_HASH' | 'MEMO_RETURN';
+
+export interface StellarMemo {
+  type: MemoType;
+  value: string;
+}
+
 export type PaymentDecision = 'APPROVE' | 'FLAG' | 'BLOCK';
 
 export interface PaymentParams {
@@ -16,6 +23,7 @@ export interface PaymentParams {
   recipient: string;
   token: string;
   amount: string; // stroops or lowest unit as string for precision
+  memo?: StellarMemo;
 }
 
 export interface SimulationResult {
@@ -88,3 +96,17 @@ export const KNOWN_SAC_TOKENS: Record<string, TokenMetadata> = {
     decimals: 7,
   },
 };
+
+
+export interface TransactionReceipt {
+  id: string;
+  sender: string;
+  recipient: string;
+  token: string;
+  amount: string;
+  status: 'Approved' | 'Escrowed' | 'Blocked';
+  reason?: string;
+  timestamp: number;
+  txHash?: string;
+  ledger?: number;
+}

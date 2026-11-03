@@ -25,7 +25,7 @@ export interface WebhookEvent {
 export interface WebhookSubscription {
   id: string;
   url: string;
-  events: WebhookEventType[] | ['*'];
+  events: (WebhookEventType | '*')[];
   secret: string;
   active: boolean;
   createdAt: number;
@@ -80,8 +80,9 @@ export class WebhookDispatcher {
    */
   public matches(subscription: WebhookSubscription, eventType: WebhookEventType): boolean {
     if (!subscription.active) return false;
-    if (subscription.events.includes('*' as any)) return true;
-    return subscription.events.includes(eventType);
+    const events: (WebhookEventType | '*')[] = subscription.events;
+    if (events.includes('*')) return true;
+    return events.includes(eventType);
   }
 
   /**
