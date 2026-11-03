@@ -1,4 +1,4 @@
-import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS, StellarMemo, FeeTier, FeeEstimate } from './types.js';
+import { NetworkConfig, PaymentParams, SimulationResult, TESTNET_CONFIG, TokenMetadata, KNOWN_SAC_TOKENS, StellarMemo, FeeTier, FeeEstimate, BatchValidationError, BatchValidationResult } from './types.js';
 import { decodeErrorCode, DecodedError } from './errors.js';
 
 export class SafeguardClient {
@@ -230,6 +230,35 @@ export class SafeguardClient {
       errors.push('Amount must be a valid integer string representing stroops');
     }
     return { valid: errors.length === 0, errors };
+  }
+
+  /**
+   * Validate an entire array of payment parameters, returning per-item validation errors.
+   */
+  public validateBatchPayments(payments: PaymentParams[]): BatchValidationResult {
+    const errorsByIndex: BatchValidationError[] = [];
+    let validCount = 0;
+
+    payments.forEach((payment, index) => {
+      const res = this.validatePaymentParams(payment);
+      if (!res.valid) {
+        errorsByIndex.push({
+          index,
+          payment,
+          errors: res.errors,
+        });
+      } else {
+        validCount++;
+      }
+    });
+
+    return {
+      valid: errorsByIndex.length === 0,
+      totalPayments: payments.length,
+      validCount,
+      invalidCount: errorsByIndex.length,
+      errorsByIndex,
+    };
   }
 
   /**

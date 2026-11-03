@@ -110,3 +110,17 @@ export interface TransactionReceipt {
   txHash?: string;
   ledger?: number;
 }
+
+export interface BatchValidationError {
+  index: number;
+  payment: PaymentParams;
+  errors: string[];
+}
+
+export interface BatchValidationResult {
+  valid: boolean;
+  totalPayments: number;
+  validCount: number;
+  invalidCount: number;
+  errorsByIndex: BatchValidationError[];
+}
