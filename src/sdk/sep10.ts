@@ -51,8 +51,8 @@ export function buildSep10Challenge(options: ChallengeOptions): {
     maxTime: (now + timeoutSeconds).toString(),
   };
 
-  // SEP-0010 requires sequence number "0"
-  const serverAccount = new Account(serverKeypair.publicKey(), '0');
+  // SEP-0010 requires sequence number "0" (TransactionBuilder increments sequence by 1)
+  const serverAccount = new Account(serverKeypair.publicKey(), '-1');
 
   // Cryptographically random 48-byte nonce
   const nonce = crypto.randomBytes(48);
