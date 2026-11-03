@@ -6,6 +6,7 @@ import { defaultIndexer } from './indexer.js';
 import { defaultLedgerMonitor } from './ledgerMonitor.js';
 import { defaultDispatcher } from './webhooks.js';
 import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
+import { AuditLogStreamExporter } from '../sdk/auditLogExporter.js';
 import { metricsCollector } from './metrics.js';
 import { buildSep10Challenge, verifySep10Challenge } from '../sdk/sep10.js';
 import { Keypair } from '@stellar/stellar-sdk';
@@ -625,6 +626,40 @@ export function createRouter(client: SafeguardClient): Router {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(serializeReceiptCsv(receipts));
+    }
+  });
+
+  /**
+   * Export SIEM audit logs in NDJSON, RFC 5424 Syslog, or JSON format
+   */
+  router.get('/api/export/audit-logs', (req: Request, res: Response) => {
+    const rawFormat = ((req.query.format as string) || 'ndjson').toLowerCase();
+    const format = rawFormat === 'json' ? 'json' : rawFormat === 'syslog' ? 'syslog' : 'ndjson';
+    const limit = req.query.limit ? Math.min(parseInt(String(req.query.limit), 10) || 1000, 5000) : 1000;
+    const status = req.query.status as string | undefined;
+
+    const result = defaultStore.getPaginatedTransactions({
+      page: 1,
+      limit,
+      status,
+    });
+
+    const auditEvents = AuditLogStreamExporter.fromTransactions(result.items);
+    const ext = format === 'syslog' ? 'log' : format;
+    const filename = `safeguard-audit-logs-${Date.now()}.${ext}`;
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(JSON.stringify(auditEvents, null, 2));
+    } else if (format === 'syslog') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(AuditLogStreamExporter.toSyslogRfc5424(auditEvents));
+    } else {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(AuditLogStreamExporter.toNdjson(auditEvents));
     }
   });
 
