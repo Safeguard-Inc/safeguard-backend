@@ -11,3 +11,4 @@ export * from './jurisdiction.js';
 export * from './sep8.js';
 export * from './kycMonitor.js';
 export * from './footprintAnalyzer.js';
+export * from './auditReportGenerator.js';
