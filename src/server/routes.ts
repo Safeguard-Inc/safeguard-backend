@@ -4,6 +4,7 @@ import { SafeguardClient } from '../sdk/client.js';
 import { defaultStore } from './store.js';
 import { defaultIndexer } from './indexer.js';
 import { defaultDispatcher } from './webhooks.js';
+import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -264,6 +265,35 @@ export function createRouter(client: SafeguardClient): Router {
       success: true,
       data: stats,
     });
+  });
+
+  /**
+   * Export Transactions for audit/accounting (CSV or JSON download)
+   */
+  router.get('/api/export/transactions', (req: Request, res: Response) => {
+    const rawFormat = ((req.query.format as string) || 'csv').toLowerCase();
+    const format = rawFormat === 'json' ? 'json' : 'csv';
+    const limit = req.query.limit ? Math.min(parseInt(String(req.query.limit), 10) || 1000, 5000) : 1000;
+    const status = req.query.status as string | undefined;
+
+    const result = defaultStore.getPaginatedTransactions({
+      page: 1,
+      limit,
+      status,
+    });
+
+    const receipts = result.items;
+    const filename = `safeguard-transactions-${Date.now()}.${format}`;
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(serializeReceiptJson(receipts, true));
+    } else {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(serializeReceiptCsv(receipts));
+    }
   });
 
   router.get('/api/transactions', (req: Request, res: Response) => {
