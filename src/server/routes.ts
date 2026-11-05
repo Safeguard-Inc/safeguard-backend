@@ -16,6 +16,7 @@ import { InstitutionalBalanceSheetReportGenerator } from '../sdk/balanceSheetGen
 import { EscrowFinancialAggregator } from '../sdk/escrowAggregator.js';
 import { GatewayTelemetryAggregator } from '../sdk/gatewayTelemetry.js';
 import { RegulatoryCompliancePacketExporter } from '../sdk/compliancePacketExporter.js';
+import { signSessionToken, createAuthMiddleware } from './middleware/auth.js';
 
 const DENYLISTED = 'GCV4I3P3F2OMWYZGRXD5PR5AC3K7MUDSBMKDBPEMJ2MFHLVUAGJEK4DT';
 
@@ -43,8 +44,13 @@ export function createRouter(client: SafeguardClient): Router {
   // Mirror the live contract's denylist so simulations match on-chain results.
   client.setDenylist([DENYLISTED]);
 
-  const authServerKeypair = Keypair.random();
-  const authHomeDomain = 'safeguard.finance';
+  const authServerKeypair = process.env.SERVER_SIGNING_KEY
+    ? Keypair.fromSecret(process.env.SERVER_SIGNING_KEY)
+    : Keypair.random();
+  const authHomeDomain = process.env.HOME_DOMAIN || 'safeguard.finance';
+  const requireMutationAuth = createAuthMiddleware({
+    requireAuth: process.env.REQUIRE_AUTH === 'true',
+  });
 
   /**
    * SEP-0010 Challenge Issuance
@@ -88,10 +94,15 @@ export function createRouter(client: SafeguardClient): Router {
       return res.status(401).json({ success: false, error: result.error });
     }
 
+    const token = signSessionToken(result.clientPublicKey!);
+
     res.json({
       success: true,
       authenticatedAddress: result.clientPublicKey,
+      token,
+      tokenType: 'Bearer',
       issuedAt: Date.now(),
+      expiresInSeconds: 86400,
     });
   });
 
@@ -198,7 +209,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Batch Denylist Mutation Endpoint (Add / Remove)
    */
-  router.post('/api/compliance/denylist/batch/mutate', (req: Request, res: Response) => {
+  router.post('/api/compliance/denylist/batch/mutate', requireMutationAuth, (req: Request, res: Response) => {
     const action = req.body.action;
     const addresses = Array.isArray(req.body.addresses) ? req.body.addresses : [];
 
@@ -411,7 +422,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Configure or Remove Per-Token Spend Cap
    */
-  router.post('/api/tokens/spend-caps', (req: Request, res: Response) => {
+  router.post('/api/tokens/spend-caps', requireMutationAuth, (req: Request, res: Response) => {
     const { token, cap, action } = req.body;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ success: false, error: 'token address is required' });
@@ -565,7 +576,7 @@ export function createRouter(client: SafeguardClient): Router {
     });
   });
 
-  router.post('/api/webhooks/subscribe', (req: Request, res: Response) => {
+  router.post('/api/webhooks/subscribe', requireMutationAuth, (req: Request, res: Response) => {
     try {
       const { url, events, secret } = req.body;
       if (!url || typeof url !== 'string') {
@@ -585,7 +596,7 @@ export function createRouter(client: SafeguardClient): Router {
     }
   });
 
-  router.delete('/api/webhooks/subscriptions/:id', (req: Request, res: Response) => {
+  router.delete('/api/webhooks/subscriptions/:id', requireMutationAuth, (req: Request, res: Response) => {
     const deleted = defaultDispatcher.unregister(req.params.id);
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Subscription not found' });
@@ -609,7 +620,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Clear Webhook Dead Letter Queue (DLQ)
    */
-  router.delete('/api/webhooks/dlq', (_req: Request, res: Response) => {
+  router.delete('/api/webhooks/dlq', requireMutationAuth, (_req: Request, res: Response) => {
     defaultDispatcher.clearDeadLetterQueue();
     res.json({
       success: true,
@@ -886,7 +897,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Partially release an active escrow
    */
-  router.post('/api/escrows/:id/release-partial', (req: Request, res: Response) => {
+  router.post('/api/escrows/:id/release-partial', requireMutationAuth, (req: Request, res: Response) => {
     const idParam = req.params.id;
     const escrowIndex = parseInt(idParam, 10);
     if (isNaN(escrowIndex)) {
@@ -906,7 +917,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Bulk release multiple active escrows
    */
-  router.post('/api/escrows/batch/release', (req: Request, res: Response) => {
+  router.post('/api/escrows/batch/release', requireMutationAuth, (req: Request, res: Response) => {
     const { escrowIds } = req.body;
     if (!Array.isArray(escrowIds) || escrowIds.length === 0) {
       return res.status(400).json({ success: false, error: 'escrowIds must be a non-empty array of numbers' });
@@ -927,7 +938,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Bulk refund multiple active escrows
    */
-  router.post('/api/escrows/batch/refund', (req: Request, res: Response) => {
+  router.post('/api/escrows/batch/refund', requireMutationAuth, (req: Request, res: Response) => {
     const { escrowIds } = req.body;
     if (!Array.isArray(escrowIds) || escrowIds.length === 0) {
       return res.status(400).json({ success: false, error: 'escrowIds must be a non-empty array of numbers' });
@@ -948,7 +959,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Bulk dispute multiple active escrows
    */
-  router.post('/api/escrows/batch/dispute', (req: Request, res: Response) => {
+  router.post('/api/escrows/batch/dispute', requireMutationAuth, (req: Request, res: Response) => {
     const { escrowIds } = req.body;
     if (!Array.isArray(escrowIds) || escrowIds.length === 0) {
       return res.status(400).json({ success: false, error: 'escrowIds must be a non-empty array of numbers' });
@@ -969,7 +980,7 @@ export function createRouter(client: SafeguardClient): Router {
   /**
    * Bulk arbitrate multiple disputed escrows
    */
-  router.post('/api/escrows/batch/arbitrate', (req: Request, res: Response) => {
+  router.post('/api/escrows/batch/arbitrate', requireMutationAuth, (req: Request, res: Response) => {
     const { escrowIds, releaseToRecipient } = req.body;
     if (!Array.isArray(escrowIds) || escrowIds.length === 0) {
       return res.status(400).json({ success: false, error: 'escrowIds must be a non-empty array of numbers' });

@@ -27,3 +27,4 @@ Please include:
 * **Fail-Closed Evaluation**: Pre-flight simulator fails closed on all unrecognized errors or network timeouts.
 * **Tiered Rate Limiting**: Token-bucket algorithm mitigating denial-of-service vectors.
 * **Security Headers**: Helmet-secured HTTP endpoints preventing common web vulnerabilities.
+

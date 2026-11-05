@@ -27,3 +27,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactored server route registration and factory architecture.
 - Synchronized error catalog with `safeguard-core` 270 error definitions.
+
