@@ -111,10 +111,14 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     const authHeader = req.headers.authorization;
     const apiKey = req.headers['x-api-key'] as string | undefined;
 
-    // Direct API key check (for automated server-to-server integrations)
-    if (apiKey && process.env.API_SECRET_KEY && apiKey === process.env.API_SECRET_KEY) {
-      (req as any).authenticatedAddress = 'api_key_service';
-      return next();
+    // Direct API key check (for automated server-to-server integrations) with timing-safe comparison
+    if (apiKey && process.env.API_SECRET_KEY) {
+      const aBuf = Buffer.from(apiKey);
+      const bBuf = Buffer.from(process.env.API_SECRET_KEY);
+      if (aBuf.length === bBuf.length && crypto.timingSafeEqual(aBuf, bBuf)) {
+        (req as any).authenticatedAddress = 'api_key_service';
+        return next();
+      }
     }
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

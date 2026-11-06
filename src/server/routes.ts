@@ -49,7 +49,7 @@ export function createRouter(client: SafeguardClient): Router {
     : Keypair.random();
   const authHomeDomain = process.env.HOME_DOMAIN || 'safeguard.finance';
   const requireMutationAuth = createAuthMiddleware({
-    requireAuth: process.env.REQUIRE_AUTH === 'true',
+    requireAuth: process.env.REQUIRE_AUTH === 'true' || process.env.NODE_ENV === 'production',
   });
 
   /**

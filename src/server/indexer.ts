@@ -145,14 +145,34 @@ export class SorobanIndexer {
       const txHash = event.txHash || (event.id ? String(event.id) : undefined);
       const ledger = event.ledger;
 
-      if (topics.includes('escrow_held') || topics.includes('pay_block')) {
+      const isRelevantTopic =
+        topics.includes('escrow_held') ||
+        topics.includes('pay_block') ||
+        topics.includes('pay_esc') ||
+        topics.includes('pay_app') ||
+        topics.includes('esc_rel') ||
+        topics.includes('esc_ref') ||
+        topics.includes('esc_dsp') ||
+        topics.includes('esc_arb') ||
+        topics.includes('esc_clm');
+
+      if (isRelevantTopic) {
+        let status: 'Approved' | 'Escrowed' | 'Blocked' = 'Escrowed';
+        if (topics.includes('pay_app') || topics.includes('esc_rel') || topics.includes('esc_clm')) {
+          status = 'Approved';
+        } else if (topics.includes('pay_block')) {
+          status = 'Blocked';
+        } else {
+          status = 'Escrowed';
+        }
+
         this.store.addTransaction({
           id: `tx-chain-${ledger}-${this.eventsProcessed}`,
           sender: 'On-Chain Event',
           recipient: 'Safeguard Vault',
           token: 'XLM SAC',
           amount: 'On-Chain',
-          status: topics.includes('pay_block') ? 'Blocked' : 'Escrowed',
+          status,
           reason: `Indexed contract event: ${topics.join(' / ')}`,
           timestamp: Date.now(),
           txHash,
