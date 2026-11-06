@@ -91,4 +91,6 @@ export class CursorStore {
   }
 }
 
-export const defaultCursorStore = new CursorStore();
+export const defaultCursorStore = new CursorStore({
+  storageFile: path.resolve(process.cwd(), '.data', 'cursor.json'),
+});

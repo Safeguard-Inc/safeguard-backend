@@ -8,6 +8,7 @@
 
 import { rpc, scValToNative } from '@stellar/stellar-sdk';
 import { DataStore, defaultStore } from './store.js';
+import { defaultCursorStore } from './cursorStore.js';
 
 export interface IndexerStatus {
   active: boolean;
@@ -50,13 +51,19 @@ export class SorobanIndexer {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    try {
-      const latest = await this.rpcServer.getLatestLedger();
-      this.lastLedger = Math.max(1, latest.sequence - 100);
+    const saved = defaultCursorStore.get(this.contractId);
+    if (saved && saved.lastLedger > 0) {
+      this.lastLedger = saved.lastLedger;
       this.healthy = true;
-    } catch {
-      this.lastLedger = 5_000_000;
-      this.healthy = false;
+    } else {
+      try {
+        const latest = await this.rpcServer.getLatestLedger();
+        this.lastLedger = Math.max(1, latest.sequence - 100);
+        this.healthy = true;
+      } catch {
+        this.lastLedger = 5_000_000;
+        this.healthy = false;
+      }
     }
 
     const poll = async () => {
@@ -100,6 +107,7 @@ export class SorobanIndexer {
       });
 
       this.lastLedger = currentSequence;
+      defaultCursorStore.advance(this.contractId, this.lastLedger);
       this.lastSyncTime = Date.now();
       this.healthy = true;
       this.consecutiveErrors = 0;

@@ -80,6 +80,18 @@ export function buildSep10Challenge(options: ChallengeOptions): {
   };
 }
 
+// In-memory cache of consumed nonces with expiry timestamps to block replay attacks
+const consumedNonces = new Map<string, number>();
+
+export function clearExpiredNonces(): void {
+  const now = Math.floor(Date.now() / 1000);
+  for (const [nonce, exp] of consumedNonces.entries()) {
+    if (exp <= now) {
+      consumedNonces.delete(nonce);
+    }
+  }
+}
+
 /**
  * Validates a client-signed SEP-0010 challenge transaction.
  */
@@ -121,6 +133,16 @@ export function verifySep10Challenge(
       return { valid: false, error: 'Operation source (client address) missing' };
     }
 
+    // Verify nonce uniqueness to prevent replay attacks
+    const rawValue = firstOp.value;
+    const nonceHex = rawValue ? Buffer.from(rawValue).toString('hex') : '';
+    if (nonceHex) {
+      clearExpiredNonces();
+      if (consumedNonces.has(nonceHex)) {
+        return { valid: false, error: 'Challenge transaction has already been consumed (replay attack detected)' };
+      }
+    }
+
     // 4. Verify timebounds validity
     const now = Math.floor(Date.now() / 1000);
     if (tx.timeBounds) {
@@ -157,6 +179,11 @@ export function verifySep10Challenge(
 
     if (!hasClientSig) {
       return { valid: false, error: 'Missing or invalid client signature' };
+    }
+
+    if (nonceHex) {
+      const expiry = tx.timeBounds ? parseInt(tx.timeBounds.maxTime, 10) : now + 300;
+      consumedNonces.set(nonceHex, expiry);
     }
 
     return {

@@ -163,14 +163,22 @@ export class DataStore {
 
   private saveTransactions() {
     try {
-      fs.writeFileSync(this.txFile, JSON.stringify(this.transactions, null, 2), 'utf8');
-    } catch {}
+      const tempPath = `${this.txFile}.${Date.now()}.${Math.floor(Math.random() * 1000)}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(this.transactions, null, 2), 'utf8');
+      fs.renameSync(tempPath, this.txFile);
+    } catch (err) {
+      console.error('Failed to atomically write transactions file:', err);
+    }
   }
 
   private saveEscrows() {
     try {
-      fs.writeFileSync(this.escrowFile, JSON.stringify(this.escrows, null, 2), 'utf8');
-    } catch {}
+      const tempPath = `${this.escrowFile}.${Date.now()}.${Math.floor(Math.random() * 1000)}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(this.escrows, null, 2), 'utf8');
+      fs.renameSync(tempPath, this.escrowFile);
+    } catch (err) {
+      console.error('Failed to atomically write escrows file:', err);
+    }
   }
 
   public getPaginatedTransactions(options: PaginationOptions = {}): PaginatedResult<StoredTransaction> {

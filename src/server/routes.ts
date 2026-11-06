@@ -4,7 +4,7 @@ import { SafeguardClient } from '../sdk/client.js';
 import { defaultStore } from './store.js';
 import { defaultIndexer } from './indexer.js';
 import { defaultLedgerMonitor } from './ledgerMonitor.js';
-import { defaultDispatcher } from './webhooks.js';
+import { defaultDispatcher, isSafeWebhookUrl } from './webhooks.js';
 import { serializeReceiptCsv, serializeReceiptJson } from '../sdk/receipt.js';
 import { AuditLogStreamExporter } from '../sdk/auditLogExporter.js';
 import { metricsCollector } from './metrics.js';
@@ -579,8 +579,8 @@ export function createRouter(client: SafeguardClient): Router {
   router.post('/api/webhooks/subscribe', requireMutationAuth, (req: Request, res: Response) => {
     try {
       const { url, events, secret } = req.body;
-      if (!url || typeof url !== 'string') {
-        res.status(400).json({ success: false, error: 'Valid URL is required' });
+      if (!url || typeof url !== 'string' || !isSafeWebhookUrl(url)) {
+        res.status(400).json({ success: false, error: 'Valid and public URL is required (loopback, private networks, and metadata endpoints are prohibited)' });
         return;
       }
       const sub = defaultDispatcher.register({

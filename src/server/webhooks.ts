@@ -49,6 +49,44 @@ export interface DeadLetterDelivery {
   retryCount: number;
 }
 
+/**
+ * Validates a webhook destination URL against SSRF threats, loopback, and cloud metadata endpoints.
+ */
+export function isSafeWebhookUrl(targetUrl: string): boolean {
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '169.254.169.254' ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.local')
+    ) {
+      return false;
+    }
+    const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipMatch) {
+      const first = parseInt(ipMatch[1], 10);
+      const second = parseInt(ipMatch[2], 10);
+      if (first === 10) return false;
+      if (first === 127) return false;
+      if (first === 172 && second >= 16 && second <= 31) return false;
+      if (first === 192 && second === 168) return false;
+      if (first === 169 && second === 254) return false;
+      if (first === 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class WebhookDispatcher {
   private subscriptions: Map<string, WebhookSubscription> = new Map();
   private deadLetterQueue: DeadLetterDelivery[] = [];
@@ -58,6 +96,9 @@ export class WebhookDispatcher {
    * Register a new webhook listener.
    */
   public register(sub: Omit<WebhookSubscription, 'createdAt'> & { createdAt?: number }): WebhookSubscription {
+    if (!isSafeWebhookUrl(sub.url)) {
+      throw new Error('Invalid or restricted webhook URL: private, loopback, and metadata destinations are prohibited');
+    }
     const record: WebhookSubscription = {
       ...sub,
       createdAt: sub.createdAt || Date.now(),

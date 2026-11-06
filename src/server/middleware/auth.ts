@@ -14,7 +14,9 @@ export interface SessionTokenPayload {
   exp: number;
 }
 
-const DEFAULT_SECRET = process.env.API_SECRET_KEY || process.env.SERVER_SIGNING_KEY || 'safeguard-auth-session-key-v1';
+// Ephemeral cryptographically strong fallback secret if none configured in environment
+const EPHEMERAL_SECRET = crypto.randomBytes(32).toString('hex');
+const DEFAULT_SECRET = process.env.API_SECRET_KEY || process.env.SERVER_SIGNING_KEY || EPHEMERAL_SECRET;
 
 function base64UrlEncode(str: string): string {
   return Buffer.from(str)
@@ -77,7 +79,9 @@ export function verifySessionToken(
       .replace(/\+/g, '-')
       .replace(/\//g, '_');
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    const sigBuf = Buffer.from(signature);
+    const expectedSigBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
       return { valid: false, error: 'Invalid cryptographic signature' };
     }
 
@@ -100,7 +104,8 @@ export interface AuthMiddlewareOptions {
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   const secret = options.secret || DEFAULT_SECRET;
-  const isStrict = options.requireAuth ?? (process.env.REQUIRE_AUTH === 'true');
+  // Fail closed: enforce authentication unless explicitly disabled via options or process.env
+  const isStrict = options.requireAuth !== false && process.env.REQUIRE_AUTH !== 'false';
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers.authorization;
